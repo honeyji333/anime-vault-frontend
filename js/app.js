@@ -2757,7 +2757,8 @@ function updateAuthUI() {
 
   if (currentUser) {
     authBtns.style.display = 'none';
-    userMenu.style.display = 'block';
+    userMenu.style.display = 'flex';
+    userMenu.style.alignItems = 'center';
     if (adminLink) adminLink.style.display = isAdmin ? 'flex' : 'none';
     document.getElementById('user-avatar').src = currentUser.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentUser.username}`;
     document.getElementById('user-name').textContent = currentUser.username;
