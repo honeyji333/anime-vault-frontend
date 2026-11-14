@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="avGradPrimary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="45%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="avGradSecondary" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="60%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="avCoreGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#e0e7ff"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <filter id="avNeonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer Cyber Shield / Blade Left -->
+  <path d="M12 22 L40 78 L50 96 L42 66 L22 28 Z" fill="url(#avGradPrimary)" filter="url(#avNeonGlow)" opacity="0.95"/>
+
+  <!-- Outer Cyber Shield / Blade Right -->
+  <path d="M88 22 L60 78 L50 96 L58 66 L78 28 Z" fill="url(#avGradSecondary)" filter="url(#avNeonGlow)" opacity="0.95"/>
+
+  <!-- Inner Dynamic Katana Slash V -->
+  <path d="M26 26 L50 78 L74 26 L62 26 L50 56 L38 26 Z" fill="url(#avCoreGrad)" filter="url(#avNeonGlow)"/>
+
+  <!-- Central Anime Star Sparkle -->
+  <polygon points="50,12 54,26 68,30 54,34 50,48 46,34 32,30 46,26" fill="#ffffff" filter="url(#avNeonGlow)"/>
+  <circle cx="50" cy="30" r="2.5" fill="#ec4899"/>
+</svg>

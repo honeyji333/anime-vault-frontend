@@ -1,0 +1,20 @@
+{
+  "name": "anime-vault-frontend",
+  "version": "1.0.0",
+  "description": "AnimeVault Frontend — Premium Anime, 4K Movies & Hindi Dub Indian Cartoons Streaming Platform",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx serve -s . -l 5173",
+    "start": "npx serve -s ."
+  },
+  "keywords": [
+    "anime",
+    "streaming",
+    "hindi-dub",
+    "cartoons",
+    "offanime",
+    "movies"
+  ],
+  "author": "Manan Sharma",
+  "license": "MIT"
+}
