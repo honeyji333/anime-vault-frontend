@@ -3989,7 +3989,7 @@ async function renderToonSeriesPage(slug) {
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="toons-hub">
-      <div style="padding:40px; text-align:center;"><div class="spinner"></div><p style="color:#38bdf8; margin-top:12px;">Loading Series Info...</p></div>
+      <div style="padding:60px 20px; text-align:center;"><div class="spinner"></div><p style="color:#38bdf8; margin-top:14px; font-weight:600;">Loading Series & Episode Catalog...</p></div>
     </div>
   `;
 
@@ -3998,41 +3998,69 @@ async function renderToonSeriesPage(slug) {
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
 
+    const firstEpLink = data.episodes?.[0]?.link || `/toons/watch/${slug}`;
+
     app.innerHTML = `
       <div class="toons-hub">
         <div style="margin-bottom:20px;">
           <button class="btn btn-ghost" onclick="navigateTo('/toons')"><i class="fas fa-arrow-left"></i> Back to Vault Toons</button>
         </div>
 
-        <div class="detail-header" style="margin-bottom:32px;">
-          <div class="detail-poster">
-            <img src="${data.poster}" alt="${escapeHtml(data.title)}" onerror="this.src='/images/placeholder.svg'">
+        <div class="toon-detail-header">
+          <div class="toon-detail-poster-wrap">
+            <img src="${data.poster || '/images/placeholder.svg'}" alt="${escapeHtml(data.title)}" onerror="this.src='/images/placeholder.svg'">
           </div>
-          <div class="detail-info">
-            <span class="badge badge-dub" style="background:#0284c7; color:#fff;">✨ VAULT TOONS</span>
-            <h1 class="detail-title" style="margin-top:8px;">${escapeHtml(data.title)}</h1>
-            <div class="detail-meta-row" style="margin:12px 0;">
-              <span class="detail-score"><i class="fas fa-star" style="color:#fbbf24;"></i> ${data.rating || '8.8'}</span>
-              <span>${data.episodesCount} Episodes</span>
-              <span style="color:#38bdf8; font-weight:700;">Hindi & Multi-Audio</span>
+          <div class="toon-detail-info">
+            <span class="toons-section-badge" style="display:inline-block; margin-bottom:8px;">VAULT TOONS</span>
+            <h1 class="toon-detail-title">${escapeHtml(data.title)}</h1>
+            <div class="toon-detail-meta">
+              <span><i class="fas fa-star" style="color:#fbbf24;"></i> ${data.rating || '8.8'} TMDB</span>
+              <span><i class="fas fa-layer-group" style="color:#38bdf8;"></i> ${data.episodesCount} Episodes Uploaded</span>
+              <span style="color:#38bdf8; font-weight:700;"><i class="fas fa-language"></i> Hindi & Multi-Audio</span>
+              <span><i class="fas fa-closed-captioning"></i> English Subs</span>
             </div>
-            <p class="detail-synopsis">${escapeHtml(data.synopsis || 'Full series and episodes available for instant streaming with zero ads and high quality servers.')}</p>
+            <p class="toon-detail-synopsis">${escapeHtml(data.synopsis || 'Full series and episodes available for instant streaming with zero ads and high-speed servers.')}</p>
+            <div style="margin-top:auto; display:flex; gap:12px; flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="navigateTo('${firstEpLink}')">
+                <i class="fas fa-play"></i> Watch Episode 1
+              </button>
+              <button class="btn btn-secondary" onclick="navigateTo('/toons')">
+                <i class="fas fa-compass"></i> Explore All Toons
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="toons-section-title">
-          <i class="fas fa-list-ol"></i>
-          <span>Select Episode to Watch</span>
-          <span class="toons-section-badge">${data.episodesCount} Available</span>
+          <i class="fas fa-photo-film"></i>
+          <span>Episodes (${data.episodesCount})</span>
+          <span class="toons-section-badge">100% THUMBNAILS</span>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:12px;">
-          ${data.episodes.map(ep => `
-            <button class="btn btn-secondary" onclick="navigateTo('${ep.link}')" style="padding:12px 8px; font-size:0.85rem; font-weight:700; border-radius:var(--radius); display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center;">
-              <i class="fas fa-play" style="font-size:0.75rem; color:#38bdf8;"></i>
-              <span>${escapeHtml(ep.title)}</span>
-            </button>
-          `).join('')}
+        <div class="toon-episodes-grid">
+          ${data.episodes.map((ep, idx) => {
+            const thumbUrl = ep.thumbnail || data.poster || '/images/placeholder.svg';
+            const epBadge = ep.epNum || `EP ${ep.episode_no || idx + 1}`;
+            const epTitle = ep.title || `Episode ${ep.episode_no || idx + 1}`;
+            return `
+              <div class="toon-ep-card" onclick="navigateTo('${ep.link}')">
+                <div class="toon-ep-thumb">
+                  <span class="toon-ep-badge">${escapeHtml(epBadge)}</span>
+                  <img src="${thumbUrl}" alt="${escapeHtml(epTitle)}" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+                  <div class="toon-ep-play">
+                    <i class="fas fa-circle-play"></i>
+                  </div>
+                </div>
+                <div class="toon-ep-info">
+                  <div class="toon-ep-title" title="${escapeHtml(epTitle)}">${escapeHtml(epTitle)}</div>
+                  <div class="toon-ep-meta">
+                    <span><i class="fas fa-volume-high" style="color:#38bdf8;"></i> Hindi Audio</span>
+                    <span>1080p HD</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
     `;
@@ -4106,8 +4134,61 @@ async function renderToonWatchPage(slug) {
           </div>
           <button class="btn btn-primary" onclick="navigateTo('/toons')">Explore More Shows</button>
         </div>
+
+        <!-- Series Episode Grid with Thumbnails -->
+        <div id="toon-watch-siblings-container" style="margin-top:36px;">
+          <div class="toons-section-title">
+            <i class="fas fa-photo-film"></i>
+            <span>All Episodes in this Series</span>
+            <span class="toons-section-badge">NOW STREAMING</span>
+          </div>
+          <div class="toon-episodes-grid" id="toon-watch-episodes-grid">
+            <div style="padding:20px; color:var(--text-muted);"><div class="spinner"></div> Loading episodes...</div>
+          </div>
+        </div>
       </div>
     `;
+
+    // Asynchronously populate sibling episodes with thumbnails
+    const seriesSlug = data.seriesSlug || slug.replace(/-\d+x\d+$/, '');
+    if (seriesSlug) {
+      fetch(`${API_BASE}/api/toons/series/${seriesSlug}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(seriesData => {
+          const grid = document.getElementById('toon-watch-episodes-grid');
+          if (grid && seriesData.success && seriesData.episodes?.length) {
+            grid.innerHTML = seriesData.episodes.map((ep, idx) => {
+              const isCurrent = ep.slug === slug || ep.link.includes(slug);
+              const thumbUrl = ep.thumbnail || seriesData.poster || '/images/placeholder.svg';
+              const epBadge = ep.epNum || `EP ${ep.episode_no || idx + 1}`;
+              const epTitle = ep.title || `Episode ${ep.episode_no || idx + 1}`;
+              return `
+                <div class="toon-ep-card ${isCurrent ? 'active' : ''}" onclick="navigateTo('${ep.link}')">
+                  <div class="toon-ep-thumb">
+                    <span class="toon-ep-badge">${escapeHtml(epBadge)}</span>
+                    <img src="${thumbUrl}" alt="${escapeHtml(epTitle)}" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+                    <div class="toon-ep-play">
+                      <i class="fas fa-circle-play"></i>
+                    </div>
+                  </div>
+                  <div class="toon-ep-info">
+                    <div class="toon-ep-title" title="${escapeHtml(epTitle)}">${escapeHtml(epTitle)}</div>
+                    <div class="toon-ep-meta">
+                      ${isCurrent ? '<span class="toon-ep-now-playing"><i class="fas fa-circle-dot fa-fade"></i> NOW PLAYING</span>' : '<span><i class="fas fa-play" style="font-size:0.65rem;"></i> Play</span>'}
+                      <span>1080p HD</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          } else if (grid) {
+            document.getElementById('toon-watch-siblings-container')?.remove();
+          }
+        })
+        .catch(() => {
+          document.getElementById('toon-watch-siblings-container')?.remove();
+        });
+    }
 
     // Save to watched set
     try {
