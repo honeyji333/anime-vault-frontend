@@ -260,82 +260,88 @@ function handleRoute() {
 
 // ===== HINDI DUBBED ANIME REGISTRY =====
 const HINDI_DUBBED_SLUGS = new Set([
-  'naruto', 'naruto-shippuden', 'dragon-ball', 'dragon-ball-z', 'dragon-ball-super', 'dragon-ball-daima',
+  'naruto', 'naruto-classic', 'naruto-shippuden', 'dragon-ball', 'dragon-ball-z', 'dragon-ball-super', 'dragon-ball-daima',
   'fairy-tail', 'fairy-tail-hindi', 'demon-slayer', 'demon-slayer-mugen-train',
   'jujutsu-kaisen', 'chainsaw-man', 'my-hero-academia', 'solo-leveling', 'solo-leveling-season-2',
   'spy-x-family', 'one-punch-man', 'attack-on-titan', 'death-note', 'tokyo-revengers',
-  'black-clover', 'kaiju-no-8', 'dan-da-dan', 'bleach-tybw', 'bleach-tybw-part-3',
+  'black-clover', 'kaiju-no-8', 'dan-da-dan', 'bleach-classic', 'bleach-tybw', 'bleach-tybw-part-3',
   'dr-stone', 'vinland-saga', 'vinland-saga-season-2', 'hells-paradise',
   'classroom-of-the-elite', 'delicious-in-dungeon', 'shangri-la-frontier',
-  'blue-lock', 'mashle', 'wind-breaker'
+  'blue-lock', 'mashle', 'wind-breaker', 'the-apothecary-diaries', 'ranma-1-2-2024',
+  'blue-box', 'pluto', 'tower-of-god'
 ]);
 
 // ===== STREAMING PROVIDERS REGISTRY (MULTI-SERVER ULTRA ARCHITECTURE) =====
 const ANIME_SERVERS = [
   {
-    id: 'jutsu',
+    id: 'animeembed',
     name: 'Server 1',
     badge: 'FAST HD',
-    provider: 'Jutsu Stream',
+    provider: 'AnimeEmbed Ultra HD',
     audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, episode, audio }) =>
-      `https://www.jutsu.club/embed/ani/${anilistId}/${episode}/${audio === 'sub' ? 'sub' : 'dub'}${audio === 'hindi' ? '?lang=hi' : ''}`
-  },
-  {
-    id: 'vidlink-multi',
-    name: 'Server 2',
-    badge: 'PRO HD',
-    provider: 'VidLink Pro',
-    audio: ['sub', 'dub', 'hindi'],
-    build: ({ tmdbId, anilistId, malId, episode, audio, isMovie }) => {
-      const targetTmdb = tmdbId || (anilistId === 21 ? 37854 : null);
-      if (targetTmdb) {
-        if (isMovie) {
-          return `https://vidlink.pro/movie/${targetTmdb}?primaryColor=8b5cf6&multiLang=1`;
-        }
-        return `https://vidlink.pro/tv/${targetTmdb}/1/${episode}?primaryColor=8b5cf6&multiLang=1`;
+    build: ({ anilistId, malId, episode, audio, animeTitle }) => {
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      const lang = audio === 'hindi' ? '&lang=hi' : '';
+      if (anilistId) {
+        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1${animeTitle ? `&title=${encodeURIComponent(animeTitle)}` : ''}`;
       }
-      return `https://autoembed.me/tv/tmdb/${anilistId}-1-${episode}`;
+      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
-    id: 'autoembed-anime',
+    id: 'justplay',
+    name: 'Server 2',
+    badge: 'CINEMATIC HD',
+    provider: 'JustPlay Stream',
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ anilistId, malId, episode, audio }) => {
+      const idParam = anilistId ? `ani=${anilistId}` : `mal=${malId || 21}`;
+      const langParam = audio === 'hindi' ? 'lang=hindi' : (audio === 'dub' ? 'lang=dub' : 'lang=sub');
+      return `https://justplay.boo/embed/?${idParam}&ep=${episode}&${langParam}&accent=8b5cf6&autoskip=1`;
+    }
+  },
+  {
+    id: 'justplay-pahe',
     name: 'Server 3',
     badge: 'FAST STREAM',
-    provider: 'AutoEmbed HD',
+    provider: 'JustPlay Pahe',
     audio: ['sub', 'dub'],
-    build: ({ tmdbId, anilistId, episode, isMovie }) => {
-      const targetTmdb = tmdbId || (anilistId === 21 ? 37854 : null);
-      if (isMovie && targetTmdb) {
-        return `https://autoembed.me/movie/tmdb/${targetTmdb}`;
+    build: ({ anilistId, malId, episode, audio }) => {
+      const idParam = anilistId ? `ani=${anilistId}` : `mal=${malId || 21}`;
+      const langParam = audio === 'dub' ? 'lang=dub' : 'lang=sub';
+      return `https://justplay.boo/embed/?${idParam}&ep=${episode}&${langParam}&provider=pahe&accent=8b5cf6`;
+    }
+  },
+  {
+    id: 'vidcore-anime',
+    name: 'Server 4',
+    badge: 'UHD PRO',
+    provider: 'VidCore HD',
+    audio: ['sub', 'dub'],
+    build: ({ tmdbId, anilistId, episode, isMovie, season }) => {
+      if (isMovie && tmdbId) {
+        return `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`;
       }
-      return `https://autoembed.me/tv/tmdb/${targetTmdb || anilistId}-1-${episode}`;
+      if (tmdbId) {
+        return `https://player.autoembed.me/embed/tv/${tmdbId}/${season || 1}/${episode}/`;
+      }
+      return `https://animeembed.com/embed/ani/${anilistId || 21}/${episode}?accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: '2embed-anime',
-    name: 'Server 4',
-    badge: 'UHD STREAM',
-    provider: '2Embed Ultra HD',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, anilistId, episode, isMovie }) => {
-      const id = tmdbId || anilistId;
-      if (isMovie) {
-        return `https://www.2embed.skin/movie/${id}`;
-      }
-      return `https://www.2embed.skin/tv/${id}&s=1&e=${episode}`;
-    }
-  },
-  {
-    id: 'animeembed',
     name: 'Server 5',
     badge: 'MULTI HD',
-    provider: 'AnimeEmbed HD',
-    audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, malId, tmdbId, episode, audio, animeTitle }) => {
-      const track = audio === 'sub' ? 'sub' : 'dub';
-      const lang = audio === 'hindi' ? '&lang=hi' : '';
-      return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1${animeTitle ? `&title=${encodeURIComponent(animeTitle)}` : ''}`;
+    provider: '2Embed Ultra HD',
+    audio: ['sub', 'dub'],
+    build: ({ tmdbId, anilistId, episode, isMovie, season }) => {
+      if (isMovie && tmdbId) {
+        return `https://www.2embed.cc/embed/${tmdbId}`;
+      }
+      if (tmdbId) {
+        return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode}`;
+      }
+      return `https://justplay.boo/embed/?ani=${anilistId || 21}&ep=${episode}&accent=8b5cf6`;
     }
   }
 ];
@@ -343,30 +349,19 @@ const ANIME_SERVERS = [
 // Web Series & Movies TMDB streaming providers (Clean, Fast, 4K UHD, Zero Adult Popups)
 const WEBSERIES_SERVERS = [
   {
-    id: 'vidlink-tv',
+    id: 'vidcore-tv',
     name: 'Server 1 (4K UHD)',
     badge: '4K UHD',
-    provider: 'VidLink Pro Ultra',
+    provider: 'VidCore Ultra HD',
     audio: ['sub', 'dub'],
     build: ({ tmdbId, season, episode, isMovie }) =>
       isMovie
-        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=10b981`
-        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=10b981`
-  },
-  {
-    id: '2embed-skin',
-    name: 'Server 2 (2K HD)',
-    badge: '2K HD',
-    provider: '2Embed Ultra HD',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, season, episode, isMovie }) =>
-      isMovie
-        ? `https://www.2embed.skin/movie/${tmdbId}`
-        : `https://www.2embed.skin/tv/${tmdbId}&s=${season}&e=${episode}`
+        ? `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`
+        : `https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}?theme=8b5cf6`
   },
   {
     id: 'autoembed-direct',
-    name: 'Server 3 (PRO)',
+    name: 'Server 2 (PRO)',
     badge: 'UHD PRO',
     provider: 'AutoEmbed Direct',
     audio: ['sub', 'dub'],
@@ -374,6 +369,17 @@ const WEBSERIES_SERVERS = [
       isMovie
         ? `https://player.autoembed.me/embed/movie/${tmdbId}`
         : `https://player.autoembed.me/embed/tv/${tmdbId}/${season}/${episode}/`
+  },
+  {
+    id: 'vidlink-tv',
+    name: 'Server 3 (2K HD)',
+    badge: '2K HD',
+    provider: 'VidLink Pro Ultra',
+    audio: ['sub', 'dub'],
+    build: ({ tmdbId, season, episode, isMovie }) =>
+      isMovie
+        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6`
+        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8b5cf6`
   },
   {
     id: '2embed-cc',
@@ -385,6 +391,17 @@ const WEBSERIES_SERVERS = [
       isMovie
         ? `https://www.2embed.cc/embed/${tmdbId}`
         : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`
+  },
+  {
+    id: '2embed-skin',
+    name: 'Server 5 (ALT HD)',
+    badge: 'MULTI-AUDIO',
+    provider: '2Embed Ultra HD',
+    audio: ['sub', 'dub'],
+    build: ({ tmdbId, season, episode, isMovie }) =>
+      isMovie
+        ? `https://www.2embed.skin/movie/${tmdbId}`
+        : `https://www.2embed.skin/tv/${tmdbId}&s=${season}&e=${episode}`
   }
 ];
 
@@ -1436,16 +1453,16 @@ async function renderAnimeDetail(slug) {
 (function migrateServerStorage() {
   try {
     const s = localStorage.getItem('anime_server');
-    const validAnimeIds = ['jutsu', 'vidlink-multi', 'autoembed-anime', '2embed-anime', 'animeembed'];
-    // Automatically migrate away from down/broken servers (justplay Cloudflare 530, animeembed) to Jutsu PRO
-    if (!s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'animeembed' || s === 'vidnest' || s === 'tryembed') {
-      localStorage.setItem('anime_server', 'jutsu');
+    const validAnimeIds = ['animeembed', 'justplay', 'justplay-pahe', 'vidcore-anime', '2embed-anime'];
+    // Automatically migrate away from down/broken servers (jutsu, vidnest, tryembed, vidlink-multi) to AnimeEmbed Ultra HD
+    if (!s || !validAnimeIds.includes(s) || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime') {
+      localStorage.setItem('anime_server', 'animeembed');
     }
     const ws = localStorage.getItem('webseries_server');
-    const validWsIds = ['vidlink-tv', 'autoembed-tv', 'embedsu-tv', 'vidsrc-vip'];
-    // Automatically default to rock-solid VidLink Pro 4K Ultra
-    if (!ws || !validWsIds.includes(ws) || ws === '2embed-tv' || ws === 'vidsrc-pm' || ws === 'vidnest-tv' || ws === 'vidnest' || ws === 'videasy') {
-      localStorage.setItem('webseries_server', 'vidlink-tv');
+    const validWsIds = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
+    // Automatically default to rock-solid VidCore Ultra 4K UHD
+    if (!ws || !validWsIds.includes(ws) || ws === 'vidsrc-pm' || ws === 'vidsrc-cc' || ws === 'vidnest-tv' || ws === 'vidnest' || ws === 'videasy' || ws === 'autoembed-tv' || ws === 'embedsu-tv' || ws === 'vidsrc-vip') {
+      localStorage.setItem('webseries_server', 'vidcore-tv');
     }
   } catch (e) {}
 })();
@@ -1456,15 +1473,14 @@ let watchState = {
   selectedServer: (function() {
     try {
       const s = localStorage.getItem('anime_server');
-      const validAnimeIds = ['jutsu', 'vidlink-multi', 'autoembed-anime', '2embed-anime', 'animeembed'];
-      // Automatically migrate from down servers to Jutsu PRO (Server 1)
-      if (!s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'animeembed' || s === 'vidnest' || s === 'tryembed') {
-        localStorage.setItem('anime_server', 'jutsu');
-        return 'jutsu';
+      const validAnimeIds = ['animeembed', 'justplay', 'justplay-pahe', 'vidcore-anime', '2embed-anime'];
+      if (!s || !validAnimeIds.includes(s) || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime') {
+        localStorage.setItem('anime_server', 'animeembed');
+        return 'animeembed';
       }
       return s;
     } catch (e) {
-      return 'jutsu';
+      return 'animeembed';
     }
   })(),
   audio: localStorage.getItem('anime_audio') || 'sub',
@@ -1554,8 +1570,8 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
 
       const s = ANIME_SERVERS.find(item => item.id === serverId) || ANIME_SERVERS[0];
       const isMovie = ep.anime_type === 'Movie';
-      if (anilistId || tmdbId) {
-        url = s.build({ anilistId, malId, tmdbId, episode: epNum, audio, animeTitle, isMovie });
+      if (anilistId || tmdbId || malId) {
+        url = s.build({ anilistId, malId, tmdbId, episode: epNum, audio, animeTitle, isMovie, season: ep.season_number || 1 });
       } else if (ep.youtube_video_id) {
         url = `https://www.youtube-nocookie.com/embed/${ep.youtube_video_id}?autoplay=1&rel=0&enablejsapi=1`;
       } else {
@@ -1597,7 +1613,7 @@ function updateWatchIframe() {
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
   } else {
-    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.setAttribute('referrerpolicy', 'origin');
     frame.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write');
   }
 
@@ -1606,6 +1622,9 @@ function updateWatchIframe() {
   frame.onload = () => {
     if (loader) loader.classList.add('hidden');
   };
+  setTimeout(() => {
+    if (loader) loader.classList.add('hidden');
+  }, 2200);
 }
 
 // Auto-Next playback controller with countdown overlay
@@ -1997,10 +2016,12 @@ async function renderWatchPage(episodeId) {
       watchState.selectedServer = 'official';
     } else if (isWebSeriesOrLive) {
       const stored = localStorage.getItem('webseries_server');
-      watchState.selectedServer = (stored && stored !== 'vidsrc-pm' && stored !== '2embed-tv' && serversList.some(s => s.id === stored)) ? stored : 'vidlink-tv';
+      const validWs = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
+      watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'vidcore-tv';
     } else {
       const stored = localStorage.getItem('anime_server');
-      watchState.selectedServer = (stored && stored !== 'justplay' && stored !== 'animeembed' && stored !== '2embed-anime' && serversList.some(s => s.id === stored)) ? stored : 'jutsu';
+      const validAn = ['animeembed', 'justplay', 'justplay-pahe', 'vidcore-anime', '2embed-anime'];
+      watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
     }
 
     const savedProg = Number(ep.progress_seconds || localStorage.getItem(`anime_prog_${ep.id}`) || 0);
@@ -2034,7 +2055,7 @@ async function renderWatchPage(episodeId) {
           <i class="fas fa-circle-info" aria-hidden="true"></i>
           <div>
             <strong>Multi-Server HD Streaming Active</strong>
-            <p>${isWebSeries ? 'Streaming from fast multi-provider HD feeds (VidLink Pro Ultra, AutoEmbed HD, Embed.su Pro, Vidsrc VIP). Ad-Free Shield enabled.' : 'Streaming from verified multi-provider HD feeds (Jutsu Stream, VidLink Pro, AutoEmbed HD, Embed.su HD). Ad-Free Shield enabled.'}</p>
+            <p>${isWebSeries ? 'Streaming from verified multi-provider 4K HD feeds (VidCore Ultra HD, AutoEmbed Direct, VidLink Pro, 2Embed HD). Ad-Free Shield enabled.' : 'Streaming from verified multi-provider HD feeds (AnimeEmbed Ultra HD, JustPlay Stream, Pahe Stream, VidCore HD). Ad-Free Shield enabled.'}</p>
           </div>
         </div>`);
 
@@ -2045,7 +2066,7 @@ async function renderWatchPage(episodeId) {
     const isOfficialServer = watchState.selectedServer === 'official';
     const iframeReferrerPolicy = isOfficialServer
       ? 'referrerpolicy="strict-origin-when-cross-origin"'
-      : 'referrerpolicy="no-referrer"';
+      : 'referrerpolicy="origin"';
     const iframeAllowAttr = isOfficialServer
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
       : 'allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"';
