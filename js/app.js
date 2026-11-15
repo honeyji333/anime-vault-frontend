@@ -93,6 +93,63 @@ function isEpisodeWatched(episodeId, serverWatchedIds = []) {
   return getWatchedEpisodesSet().has(numId);
 }
 
+// ===== Guest-to-Cloud Watch History & Progress Auto-Sync =====
+async function syncGuestHistoryToCloud() {
+  if (!currentUser) return;
+  try {
+    const watchedSet = getWatchedEpisodesSet();
+    const guestHistory = JSON.parse(localStorage.getItem('anime_guest_history') || '[]');
+    const episodesToSync = [];
+    const seenIds = new Set();
+
+    // 1. Add detailed guest history entries
+    for (const item of guestHistory) {
+      if (item && item.episode_id && !seenIds.has(Number(item.episode_id))) {
+        seenIds.add(Number(item.episode_id));
+        const prog = Number(item.progress_seconds) || Number(localStorage.getItem(`anime_prog_${item.episode_id}`) || 0);
+        episodesToSync.push({
+          episode_id: Number(item.episode_id),
+          progress_seconds: prog
+        });
+      }
+    }
+
+    // 2. Add any other watched episode IDs from set
+    for (const epId of watchedSet) {
+      const numId = Number(epId);
+      if (numId && !seenIds.has(numId)) {
+        seenIds.add(numId);
+        const prog = Number(localStorage.getItem(`anime_prog_${numId}`) || 0);
+        episodesToSync.push({
+          episode_id: numId,
+          progress_seconds: prog
+        });
+      }
+    }
+
+    // Send batch sync to server
+    if (episodesToSync.length > 0) {
+      const res = await api('/user/history/sync', {
+        method: 'POST',
+        body: JSON.stringify({ episodes: episodesToSync })
+      });
+      if (res?.success && res.synced > 0) {
+        console.log(`[Sync] Merged ${res.synced} offline guest episode(s) to cloud account.`);
+      }
+    }
+
+    // Two-way sync: Pull user's full cloud history so all watched tick marks light up on any device!
+    const cloudRes = await api('/user/history').catch(() => null);
+    if (cloudRes?.data && Array.isArray(cloudRes.data)) {
+      cloudRes.data.forEach(h => {
+        if (h.episode_id) markEpisodeWatched(h.episode_id);
+      });
+    }
+  } catch (err) {
+    console.warn('[Sync] Offline guest history sync skipped or failed:', err);
+  }
+}
+
 // ===== OffAnime Symmetrical Landing Gateway Page =====
 function renderLandingPage() {
   const app = document.getElementById('app');
@@ -1976,6 +2033,35 @@ async function renderWatchPage(episodeId) {
     }
     watchState.watchedEpisodeIds = res.data?.watchedEpisodeIds || [];
 
+    // Save recent watch for continue watching card (works for both guests & members)
+    try {
+      const recentWatch = {
+        id: ep.anime_id,
+        anime_id: ep.anime_id,
+        title: ep.anime_title || ep.title,
+        slug: ep.anime_slug,
+        cover_image: ep.anime_cover || ep.cover_image,
+        banner_image: ep.banner_image,
+        type: ep.anime_type || 'TV',
+        target_episode_id: ep.id,
+        episode_number: ep.number,
+        episode_title: ep.title,
+        season_number: ep.season_number,
+        progress_seconds: Number(ep.progress_seconds || localStorage.getItem(`anime_prog_${ep.id}`) || 0)
+      };
+      localStorage.setItem('anime_recent_watch', JSON.stringify(recentWatch));
+
+      let guestHist = JSON.parse(localStorage.getItem('anime_guest_history') || '[]');
+      guestHist = guestHist.filter(h => h.episode_id !== ep.id);
+      guestHist.unshift({
+        episode_id: ep.id,
+        anime_id: ep.anime_id,
+        progress_seconds: recentWatch.progress_seconds,
+        watched_at: new Date().toISOString()
+      });
+      localStorage.setItem('anime_guest_history', JSON.stringify(guestHist.slice(0, 50)));
+    } catch (e) {}
+
     // Record user history & auto-resume for logged-in users
     if (currentUser) {
       try {
@@ -2291,6 +2377,14 @@ async function renderWatchPage(episodeId) {
         currentWatchProg += 5;
         localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
 
+        try {
+          const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
+          if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
+            rw.progress_seconds = currentWatchProg;
+            localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
+          }
+        } catch (e) {}
+
         if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 20) {
           lastRecordedProg = currentWatchProg;
           api('/user/history', {
@@ -2304,6 +2398,13 @@ async function renderWatchPage(episodeId) {
     window._saveWatchProgressBeforeNav = function() {
       if (currentWatchProg > 5) {
         localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+        try {
+          const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
+          if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
+            rw.progress_seconds = currentWatchProg;
+            localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
+          }
+        } catch (e) {}
         if (currentUser) {
           api('/user/history', {
             method: 'POST',
@@ -2710,6 +2811,7 @@ async function handleResetPassword(e) {
     updateAuthUI();
     closeAuthModal();
     showToast(res.message || 'Password reset successfully! You are now logged in.', 'success');
+    await syncGuestHistoryToCloud();
     handleRoute();
   } catch (err) {
     if (errEl) errEl.textContent = err.message;
@@ -2731,6 +2833,7 @@ async function handleLogin(e) {
     updateAuthUI();
     closeAuthModal();
     showToast(`Welcome back, ${currentUser.username}!`, 'success');
+    await syncGuestHistoryToCloud();
     handleRoute(); // Refresh current page
   } catch (err) {
     document.getElementById('login-error').textContent = err.message;
@@ -2753,6 +2856,7 @@ async function handleRegister(e) {
     updateAuthUI();
     closeAuthModal();
     showToast(`Welcome to AnimeVault, ${currentUser.username}!`, 'success');
+    await syncGuestHistoryToCloud();
     handleRoute();
   } catch (err) {
     document.getElementById('register-error').textContent = err.message;
@@ -4076,6 +4180,7 @@ async function init() {
     const res = await api('/auth/me');
     currentUser = res.data;
     updateAuthUI();
+    syncGuestHistoryToCloud();
   } catch (e) {
     // Not logged in
   }
