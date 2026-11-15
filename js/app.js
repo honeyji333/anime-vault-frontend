@@ -63,6 +63,16 @@ window.addEventListener('beforeunload', () => {
     try { window._saveWatchProgressBeforeNav(); } catch (e) {}
   }
 });
+window.addEventListener('pagehide', () => {
+  if (typeof window._saveWatchProgressBeforeNav === 'function') {
+    try { window._saveWatchProgressBeforeNav(); } catch (e) {}
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && typeof window._saveWatchProgressBeforeNav === 'function') {
+    try { window._saveWatchProgressBeforeNav(); } catch (e) {}
+  }
+});
 
 // ===== AniSurge Watched Episodes Tracker =====
 function getWatchedEpisodesSet() {
@@ -1638,20 +1648,50 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
   }
 
   // Resume playback from exact timestamp where user left off (AniSurge-style)
-  if (startTime && Number(startTime) > 10) {
+  if (startTime && Number(startTime) > 5) {
     const s = Math.floor(Number(startTime));
     if (url.includes('youtube') || url.includes('youtu.be')) {
       url += `&start=${s}`;
     } else if (url.includes('vidlink.pro')) {
-      url += `&t=${s}`;
+      url += `&start=${s}&t=${s}`;
     } else if (url.includes('animeembed.com')) {
-      url += `&start=${s}`;
+      url += `&start=${s}&autoplay=1`;
     } else {
-      url += `${url.includes('?') ? '&' : '?'}start=${s}&t=${s}`;
+      url += `${url.includes('?') ? '&' : '?'}start=${s}&t=${s}&time=${s}`;
     }
   }
 
   return url;
+}
+
+// Global player seek dispatcher across embed iframe protocols
+function dispatchPlayerSeek(timeInSec) {
+  if (!timeInSec || Number(timeInSec) <= 5) return;
+  const s = Math.floor(Number(timeInSec));
+  const frame = document.getElementById('watch-iframe');
+  if (!frame || !frame.contentWindow) return;
+
+  // 1. AnimeEmbed protocol
+  try {
+    frame.contentWindow.postMessage({
+      channel: 'animeembed',
+      version: 1,
+      requestId: 'resume-seek-' + Date.now(),
+      command: 'seek',
+      data: { time: s }
+    }, '*');
+  } catch (e) {}
+
+  // 2. Standard HTML5 / YouTube / JWPlayer protocols
+  try {
+    frame.contentWindow.postMessage({
+      event: 'command',
+      func: 'seekTo',
+      args: [s, true]
+    }, '*');
+    frame.contentWindow.postMessage({ type: 'seek', time: s }, '*');
+    frame.contentWindow.postMessage({ command: 'seek', time: s }, '*');
+  } catch (e) {}
 }
 
 function updateWatchIframe() {
@@ -1660,7 +1700,10 @@ function updateWatchIframe() {
   if (!frame || !watchState.ep) return;
 
   if (loader) loader.classList.remove('hidden');
-  const savedProg = Number(localStorage.getItem(`anime_prog_${watchState.ep.id}`) || 0);
+  const savedProg = Math.max(
+    Number(watchState.ep.progress_seconds) || 0,
+    Number(localStorage.getItem(`anime_prog_${watchState.ep.id}`)) || 0
+  );
   const url = buildStreamUrl(watchState.ep, watchState.selectedServer, watchState.audio, savedProg);
 
   const isOfficial = watchState.selectedServer === 'official';
@@ -1678,6 +1721,11 @@ function updateWatchIframe() {
 
   frame.onload = () => {
     if (loader) loader.classList.add('hidden');
+    if (savedProg > 5) {
+      dispatchPlayerSeek(savedProg);
+      setTimeout(() => dispatchPlayerSeek(savedProg), 1200);
+      setTimeout(() => dispatchPlayerSeek(savedProg), 2500);
+    }
   };
   setTimeout(() => {
     if (loader) loader.classList.add('hidden');
@@ -2033,6 +2081,11 @@ async function renderWatchPage(episodeId) {
     }
     watchState.watchedEpisodeIds = res.data?.watchedEpisodeIds || [];
 
+    const savedProg = Math.max(
+      Number(ep.progress_seconds) || 0,
+      Number(localStorage.getItem(`anime_prog_${ep.id}`)) || 0
+    );
+
     // Save recent watch for continue watching card (works for both guests & members)
     try {
       const recentWatch = {
@@ -2047,7 +2100,7 @@ async function renderWatchPage(episodeId) {
         episode_number: ep.number,
         episode_title: ep.title,
         season_number: ep.season_number,
-        progress_seconds: Number(ep.progress_seconds || localStorage.getItem(`anime_prog_${ep.id}`) || 0)
+        progress_seconds: savedProg
       };
       localStorage.setItem('anime_recent_watch', JSON.stringify(recentWatch));
 
@@ -2056,7 +2109,7 @@ async function renderWatchPage(episodeId) {
       guestHist.unshift({
         episode_id: ep.id,
         anime_id: ep.anime_id,
-        progress_seconds: recentWatch.progress_seconds,
+        progress_seconds: savedProg,
         watched_at: new Date().toISOString()
       });
       localStorage.setItem('anime_guest_history', JSON.stringify(guestHist.slice(0, 50)));
@@ -2067,7 +2120,7 @@ async function renderWatchPage(episodeId) {
       try {
         await api('/user/history', {
           method: 'POST',
-          body: JSON.stringify({ episode_id: ep.id, progress_seconds: ep.progress_seconds || 0 })
+          body: JSON.stringify({ episode_id: ep.id, progress_seconds: savedProg })
         });
       } catch (e) {}
     }
@@ -2110,7 +2163,6 @@ async function renderWatchPage(episodeId) {
       watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
     }
 
-    const savedProg = Number(ep.progress_seconds || localStorage.getItem(`anime_prog_${ep.id}`) || 0);
     const streamUrl = buildStreamUrl(ep, watchState.selectedServer, watchState.audio, savedProg);
 
     const isSpiderManUHD = ep.anime_slug === 'spider-man-across-the-spider-verse';
@@ -2167,9 +2219,10 @@ async function renderWatchPage(episodeId) {
                 <div class="loader-ring"></div>
                 <span style="font-size:0.85rem;color:var(--text-secondary);font-weight:600;">Loading stream...</span>
               </div>
-              ${savedProg > 10 ? `
+              ${savedProg > 5 ? `
                 <div class="resume-pill-overlay" id="resume-notification-bar">
                   <span><i class="fas fa-clock-rotate-left"></i> Resumed at <strong>${formatProgressTime(savedProg)}</strong></span>
+                  <button class="resume-restart-btn" onclick="dispatchPlayerSeek(${savedProg}); showToast('Resumed to ${formatProgressTime(savedProg)}', 'info');"><i class="fas fa-play"></i> Jump to ${formatProgressTime(savedProg)}</button>
                   <button class="resume-restart-btn" onclick="restartWatchFromBeginning()"><i class="fas fa-rotate-left"></i> Start from 0:00</button>
                   <button class="resume-dismiss-btn" onclick="document.getElementById('resume-notification-bar')?.remove()" aria-label="Dismiss"><i class="fas fa-xmark"></i></button>
                 </div>
@@ -2361,11 +2414,36 @@ async function renderWatchPage(episodeId) {
     window._watchPostMessageHandler = function(e) {
       try {
         const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (d) {
-          const t = d.currentTime ?? d.time ?? d.seconds ?? d.info?.currentTime;
-          if (typeof t === 'number' && t > 0) {
-            currentWatchProg = Math.floor(t);
-            localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+        if (!d) return;
+
+        // Auto-respond to AnimeEmbed ready / play events to ensure seek happens immediately!
+        if (d.channel === 'animeembed' && (d.event === 'ready' || d.event === 'play' || d.event === 'buffering')) {
+          if (savedProg > 5) {
+            dispatchPlayerSeek(savedProg);
+          }
+        }
+
+        // Catch playback progress from any provider (AnimeEmbed, VidLink, JWPlayer, HTML5, YouTube)
+        const t = d.currentTime ?? d.time ?? d.seconds ?? d.info?.currentTime ??
+                  d.data?.currentTime ?? d.data?.time ?? d.data?.seconds;
+        if (typeof t === 'number' && Number.isFinite(t) && t > 0) {
+          currentWatchProg = Math.floor(t);
+          localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+
+          try {
+            const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
+            if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
+              rw.progress_seconds = currentWatchProg;
+              localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
+            }
+          } catch (err) {}
+
+          if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
+            lastRecordedProg = currentWatchProg;
+            api('/user/history', {
+              method: 'POST',
+              body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
+            }).catch(() => {});
           }
         }
       } catch (err) {}
@@ -2385,7 +2463,7 @@ async function renderWatchPage(episodeId) {
           }
         } catch (e) {}
 
-        if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 20) {
+        if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
           lastRecordedProg = currentWatchProg;
           api('/user/history', {
             method: 'POST',
@@ -2418,6 +2496,13 @@ async function renderWatchPage(episodeId) {
       currentWatchProg = 0;
       lastRecordedProg = 0;
       localStorage.setItem(`anime_prog_${ep.id}`, '0');
+      try {
+        const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
+        if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
+          rw.progress_seconds = 0;
+          localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
+        }
+      } catch (e) {}
       if (currentUser) {
         api('/user/history', {
           method: 'POST',
@@ -2427,6 +2512,7 @@ async function renderWatchPage(episodeId) {
       const banner = document.getElementById('resume-notification-bar');
       if (banner) banner.remove();
       showToast('Restarted playback from beginning (0:00)', 'info');
+      dispatchPlayerSeek(0);
       const frame = document.getElementById('watch-iframe');
       if (frame) {
         frame.src = buildStreamUrl(ep, watchState.selectedServer, watchState.audio, 0);
@@ -2439,9 +2525,25 @@ async function renderWatchPage(episodeId) {
       frame.removeAttribute('sandbox');
       frame.onload = () => {
         if (loader) loader.classList.add('hidden');
+        if (savedProg > 5) {
+          dispatchPlayerSeek(savedProg);
+          setTimeout(() => dispatchPlayerSeek(savedProg), 1200);
+          setTimeout(() => dispatchPlayerSeek(savedProg), 2500);
+        }
       };
       // Hide loader after maximum 4s in case onload was fired earlier
       setTimeout(() => { if (loader) loader.classList.add('hidden'); }, 4000);
+
+      if (savedProg > 5) {
+        setTimeout(() => {
+          const bar = document.getElementById('resume-notification-bar');
+          if (bar) {
+            bar.style.transition = 'opacity 0.6s ease';
+            bar.style.opacity = '0';
+            setTimeout(() => bar.remove(), 600);
+          }
+        }, 8000);
+      }
     }
   } catch (err) {
     app.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Episode Not Found</h3><p>${err.message}</p><button class="btn btn-primary" onclick="navigateTo('/')">Go Home</button></div>`;
