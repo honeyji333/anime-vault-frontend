@@ -256,6 +256,35 @@ input, select, textarea { font-family: inherit; }
   height: 32px;
   line-height: 1;
   margin: 0;
+  gap: 7px;
+}
+
+.nav-version-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display, 'Outfit', sans-serif);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.32));
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+  pointer-events: none;
+  user-select: none;
+  transition: all 0.3s ease;
+}
+
+.nav-logo:hover .nav-version-tag {
+  border-color: #34d399;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.5));
 }
 
 .nav-logo-icon {
@@ -272,6 +301,54 @@ input, select, textarea { font-family: inherit; }
 
 .logo-off { color: #10b981; }
 .logo-anime { color: #ffffff; }
+
+.landing-version-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display, 'Outfit', sans-serif);
+  font-size: 0.85rem;
+  font-weight: 800;
+  vertical-align: middle;
+  margin-left: 10px;
+  padding: 3px 12px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.35));
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  letter-spacing: 0.8px;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.3);
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.footer-version-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  letter-spacing: 0.5px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.loader-version {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* Search (Right Utility Group) */
 .nav-search {

@@ -118,6 +118,7 @@ function renderLandingPage() {
           <img src="/images/logo-emblem.png" alt="AnimeVault Logo" class="landing-center-emblem">
           <div class="landing-logo-title">
             <span class="logo-off">Anime</span><span class="logo-anime">Vault</span>
+            <span class="landing-version-pill">v2.0</span>
           </div>
         </div>
 

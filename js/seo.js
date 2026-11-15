@@ -1,6 +1,6 @@
 // Keep SPA page titles and metadata useful when a crawler or visitor changes routes.
 (() => {
-  const SITE_NAME = 'AnimeVault';
+  const SITE_NAME = 'AnimeVault v2';
   const BASE_DESCRIPTION = 'Explore anime, movies, and series in the AnimeVault catalog. Browse titles, genres, episode details, and available video sources.';
   const app = document.getElementById('app');
   if (!app) return;
