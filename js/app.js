@@ -15,7 +15,7 @@ const API_BASE = (function() {
   if (host === 'localhost' || host === '127.0.0.1' || host === '') {
     return '';
   }
-  return window.ANIME_VAULT_API_BASE || '';
+  return window.ANIME_VAULT_API_BASE || 'https://animevault-vwo3.onrender.com';
 })();
 
 // ===== API Helper =====
