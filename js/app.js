@@ -50,6 +50,10 @@ function navigateTo(path) {
   if (typeof window._saveWatchProgressBeforeNav === 'function') {
     try { window._saveWatchProgressBeforeNav(); } catch (e) {}
   }
+  if (typeof adminAutoRefreshTimer !== 'undefined' && adminAutoRefreshTimer && path !== '/admin') {
+    clearInterval(adminAutoRefreshTimer);
+    adminAutoRefreshTimer = null;
+  }
   history.pushState({}, '', path);
   handleRoute();
 }
@@ -3311,7 +3315,110 @@ async function sendAiMessage(userText) {
 
 // ===== ADMIN CONTROL CENTER (CONFIDENTIAL & EXCLUSIVE TO OWNER) =====
 let adminUsersCache = [];
+let adminLoginsCache = [];
+let adminStatsCache = null;
 let adminTargetUser = null;
+let adminActiveTab = 'users'; // 'users' | 'logins'
+let adminAutoRefreshTimer = null;
+let adminAutoRefreshEnabled = true;
+
+function parseSqliteDate(dt) {
+  if (!dt) return null;
+  if (dt instanceof Date) return dt;
+  if (typeof dt === 'number') return new Date(dt);
+  let s = String(dt).trim().replace(' ', 'T');
+  const hasTz = /Z|[+-]\d{2}(?::?\d{2})?$/i.test(s);
+  if (!hasTz) s += 'Z';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatAdminRelativeTime(dt) {
+  const d = parseSqliteDate(dt);
+  if (!d) return 'Unknown';
+  const diffMs = Date.now() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 45) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+function formatAdminFullDate(dt) {
+  const d = parseSqliteDate(dt);
+  if (!d) return 'Unknown';
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getAdminUserStatus(u) {
+  const lastActiveDate = parseSqliteDate(u.last_active);
+  const lastLoginDate = parseSqliteDate(u.last_login);
+  const refDate = lastActiveDate || lastLoginDate;
+
+  if (!refDate) {
+    return {
+      isOnline: false,
+      isToday: false,
+      badgeHtml: `<span class="admin-status-pill offline"><i class="fas fa-circle-notch"></i> Inactive</span>`,
+      timeLabel: 'Never'
+    };
+  }
+
+  const diffMs = Date.now() - refDate.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 15) {
+    return {
+      isOnline: true,
+      isToday: true,
+      badgeHtml: `<span class="admin-status-pill online"><span class="status-pulse-dot"></span> Online Now</span>`,
+      timeLabel: 'Active right now'
+    };
+  }
+
+  const now = new Date();
+  const isSameDay = refDate.getDate() === now.getDate() && 
+                    refDate.getMonth() === now.getMonth() && 
+                    refDate.getFullYear() === now.getFullYear();
+
+  const timeStr = refDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isSameDay) {
+    return {
+      isOnline: false,
+      isToday: true,
+      badgeHtml: `<span class="admin-status-pill today"><i class="fas fa-clock"></i> Today, ${timeStr}</span>`,
+      timeLabel: `Active today at ${timeStr}`
+    };
+  }
+
+  const diffDays = Math.floor(diffMins / (60 * 24));
+  if (diffDays === 1) {
+    return {
+      isOnline: false,
+      isToday: false,
+      badgeHtml: `<span class="admin-status-pill offline"><i class="fas fa-clock-rotate-left"></i> Yesterday, ${timeStr}</span>`,
+      timeLabel: `Yesterday at ${timeStr}`
+    };
+  }
+
+  return {
+    isOnline: false,
+    isToday: false,
+    badgeHtml: `<span class="admin-status-pill offline"><i class="fas fa-history"></i> ${diffDays}d ago</span>`,
+    timeLabel: formatAdminFullDate(refDate)
+  };
+}
 
 async function renderAdminPage() {
   const app = document.getElementById('app');
@@ -3345,7 +3452,7 @@ async function renderAdminPage() {
     return;
   }
 
-  // Show loading skeleton while fetching admin data
+  // Show loading skeleton while fetching initial admin data
   app.innerHTML = `
     <div class="page-container" style="padding: 40px 20px; text-align: center;">
       <div style="padding: 80px 0;">
@@ -3355,223 +3462,372 @@ async function renderAdminPage() {
     </div>
   `;
 
+  await fetchAdminData(false);
+  startAdminAutoRefresh();
+}
+
+async function fetchAdminData(isManual = false) {
   try {
-    const [statsRes, usersRes] = await Promise.all([
+    const [statsRes, usersRes, loginsRes] = await Promise.all([
       api('/admin/stats'),
-      api('/admin/users')
+      api('/admin/users'),
+      api('/admin/logins').catch(() => ({ data: [] }))
     ]);
 
-    const stats = statsRes.data;
+    adminStatsCache = statsRes.data;
     adminUsersCache = usersRes.data || [];
+    adminLoginsCache = loginsRes.data || [];
 
-    app.innerHTML = `
-      <div class="page-container admin-dashboard" style="padding: 32px 20px 80px; max-width: 1400px; margin: 0 auto;">
+    if (isManual) {
+      showToast('Admin data refreshed with live database!', 'success');
+    }
+
+    renderAdminDashboardContent();
+  } catch (err) {
+    const app = document.getElementById('app');
+    if (app && !adminUsersCache.length) {
+      app.innerHTML = `
+        <div class="page-container" style="padding: 60px 20px;">
+          <div class="empty-state" style="max-width: 500px; margin: 40px auto; padding: 40px; background: var(--bg-secondary); border-radius: 16px; text-align: center;">
+            <i class="fas fa-triangle-exclamation" style="font-size: 2.5rem; color: #ef4444; margin-bottom: 16px;"></i>
+            <h2 style="color:#fff;">Failed to Load Admin Panel</h2>
+            <p style="color:var(--text-muted);">${escapeHtml(err.message)}</p>
+            <button class="btn btn-primary" onclick="renderAdminPage()"><i class="fas fa-rotate"></i> Try Again</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+}
+
+function renderAdminDashboardContent() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const stats = adminStatsCache || {};
+  const currentSearch = document.getElementById('admin-table-search')?.value || '';
+
+  // Preserve scroll position if re-rendering during auto-refresh
+  const scrollY = window.scrollY;
+
+  app.innerHTML = `
+    <div class="page-container admin-dashboard" style="padding: 32px 20px 80px; max-width: 1440px; margin: 0 auto;">
+      
+      <!-- Top Header -->
+      <div class="admin-header" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
+        <div>
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+            <h1 style="font-size: 1.85rem; font-weight: 800; color: #fff; margin: 0; display: flex; align-items: center; gap: 12px;">
+              <span style="background: linear-gradient(135deg, #10b981, #059669); padding: 8px 12px; border-radius: 12px; display: inline-flex; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);"><i class="fas fa-shield-halved"></i></span>
+              Admin Control Center
+            </h1>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 4px 12px; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">
+              <i class="fas fa-crown" style="color:#eab308; margin-right: 4px;"></i> Super Admin
+            </span>
+          </div>
+          <p style="color: var(--text-secondary); margin: 0; font-size: 0.92rem;">
+            Real-time user database, active sessions, and live login tracking · Owner: <strong style="color:#34d399;">${escapeHtml(currentUser.email)}</strong>
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <button class="admin-live-pulse-badge" id="admin-auto-refresh-btn" onclick="toggleAdminAutoRefresh()" title="Toggle 15-second automatic live update">
+            <span class="status-pulse-dot" style="${adminAutoRefreshEnabled ? '' : 'background:#64748b; animation:none;'}"></span>
+            <span>Live Sync: ${adminAutoRefreshEnabled ? 'ON (15s)' : 'PAUSED'}</span>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="fetchAdminData(true)" title="Force instant database refresh">
+            <i class="fas fa-rotate"></i> Refresh
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="navigateTo('/')">
+            <i class="fas fa-globe"></i> View Site
+          </button>
+        </div>
+      </div>
+
+      <!-- 5 Metric Stat Cards (Real-time online & logins) -->
+      <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 32px;">
         
-        <!-- Header -->
-        <div class="admin-header" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
+        <!-- Total Registered Users -->
+        <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+          <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+            <i class="fas fa-users"></i>
+          </div>
           <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-              <h1 style="font-size: 1.9rem; font-weight: 800; color: #fff; margin: 0; display: flex; align-items: center; gap: 12px;">
-                <span style="background: linear-gradient(135deg, #10b981, #059669); padding: 8px 12px; border-radius: 12px; display: inline-flex; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);"><i class="fas fa-shield-halved"></i></span>
-                Admin Control Center
-              </h1>
-              <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 4px 12px; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">
-                <i class="fas fa-crown" style="color:#eab308; margin-right: 4px;"></i> Super Admin
-              </span>
-            </div>
-            <p style="color: var(--text-secondary); margin: 0; font-size: 0.95rem;">
-              Confidential real-time user database and server management · Authenticated as <strong style="color:#34d399;">${escapeHtml(currentUser.email)}</strong>
-            </p>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-outline btn-sm" onclick="renderAdminPage()">
-              <i class="fas fa-rotate"></i> Refresh Data
-            </button>
-            <button class="btn btn-primary btn-sm" onclick="navigateTo('/')">
-              <i class="fas fa-globe"></i> View Site
-            </button>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total Users</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.totalUsers || adminUsersCache.length}</div>
           </div>
         </div>
 
-        <!-- Metric Stat Cards -->
-        <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-bottom: 36px;">
-          <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: flex; align-items: center; gap: 18px;">
-            <div style="width: 54px; height: 54px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
-              <i class="fas fa-users"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Registered Users</div>
-              <div style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.totalUsers}</div>
-            </div>
+        <!-- Online Now (Active in past 15 min) -->
+        <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.1);">
+          <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; position: relative;">
+            <i class="fas fa-signal"></i>
+            <span class="status-pulse-dot" style="position: absolute; top: 8px; right: 8px;"></span>
           </div>
-
-          <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: flex; align-items: center; gap: 18px;">
-            <div style="width: 54px; height: 54px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
-              <i class="fas fa-film"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Anime & Movies</div>
-              <div style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.totalAnime + stats.totalMovies + stats.totalSeries}</div>
-            </div>
-          </div>
-
-          <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: flex; align-items: center; gap: 18px;">
-            <div style="width: 54px; height: 54px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
-              <i class="fas fa-tv"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total Episodes</div>
-              <div style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 2px;">${Number(stats.totalEpisodes).toLocaleString()}</div>
-            </div>
-          </div>
-
-          <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: flex; align-items: center; gap: 18px;">
-            <div style="width: 54px; height: 54px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
-              <i class="fas fa-play"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Video Plays</div>
-              <div style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.totalWatches}</div>
-            </div>
+          <div>
+            <div style="font-size: 0.8rem; color: #34d399; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Online Now</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.onlineNow || 1}</div>
           </div>
         </div>
 
-        <!-- Users Table Card -->
+        <!-- Active Today -->
+        <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+          <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+            <i class="fas fa-calendar-check"></i>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Active Today</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.activeToday || 1}</div>
+          </div>
+        </div>
+
+        <!-- Total Recorded Logins -->
+        <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+          <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(236, 72, 153, 0.15); color: #f472b6; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+            <i class="fas fa-key"></i>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Login Sessions</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.totalLogins || adminLoginsCache.length}</div>
+          </div>
+        </div>
+
+        <!-- Catalog & Video Plays -->
+        <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+          <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(168, 85, 247, 0.15); color: #c084fc; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+            <i class="fas fa-play-circle"></i>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Video Plays</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${Number(stats.totalWatches || 0).toLocaleString()}</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Navigation Tabs & Search Bar -->
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
+        <div class="admin-tabs">
+          <button class="admin-tab-btn ${adminActiveTab === 'users' ? 'active' : ''}" id="tab-btn-users" onclick="switchAdminTab('users')">
+            <i class="fas fa-users-gear"></i> Users Directory (<span id="admin-users-tab-count">${adminUsersCache.length}</span>)
+          </button>
+          <button class="admin-tab-btn ${adminActiveTab === 'logins' ? 'active' : ''}" id="tab-btn-logins" onclick="switchAdminTab('logins')">
+            <i class="fas fa-satellite-dish"></i> Live Login Activity (<span id="admin-logins-tab-count">${adminLoginsCache.length}</span>)
+          </button>
+        </div>
+
+        <div style="position: relative; min-width: 280px; flex: 1; max-width: 400px;">
+          <i class="fas fa-search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+          <input type="text" id="admin-table-search" placeholder="Search user, email, IP, or device..." value="${escapeHtml(currentSearch)}" oninput="filterAdminCurrentTab(this.value)" style="width: 100%; padding: 10px 14px 10px 38px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-size: 0.85rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+      </div>
+
+      <!-- TAB 1: USERS DIRECTORY TABLE -->
+      <div id="admin-view-users" style="${adminActiveTab === 'users' ? 'display:block;' : 'display:none;'}">
         <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;">
-            <div>
-              <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0 0 4px; display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-user-lock" style="color:var(--accent);"></i> Registered Users & Accounts (${adminUsersCache.length})
-              </h2>
-              <p style="color: var(--text-secondary); margin: 0; font-size: 0.85rem;">
-                Confidential user emails, watch activity logs, and account management tools
-              </p>
-            </div>
-            <div style="position: relative; min-width: 260px;">
-              <i class="fas fa-search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-              <input type="text" id="admin-user-search" placeholder="Search user or email..." oninput="filterAdminUsersTable(this.value)" style="width: 100%; padding: 10px 14px 10px 38px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 8px; color: #fff; font-size: 0.85rem; outline: none;">
-            </div>
-          </div>
-
           <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
               <thead>
-                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.6px;">
                   <th style="padding: 14px 20px;">User</th>
-                  <th style="padding: 14px 20px;">Email</th>
-                  <th style="padding: 14px 20px;">Role</th>
+                  <th style="padding: 14px 20px;">Email & IP</th>
+                  <th style="padding: 14px 20px;">Status</th>
+                  <th style="padding: 14px 20px;">Device & Logins</th>
                   <th style="padding: 14px 20px;">Activity</th>
                   <th style="padding: 14px 20px;">Joined</th>
                   <th style="padding: 14px 20px; text-align: right;">Actions</th>
                 </tr>
               </thead>
               <tbody id="admin-users-tbody">
-                ${renderAdminUsersRows(adminUsersCache)}
+                ${renderAdminUsersRows(adminUsersCache, currentSearch)}
               </tbody>
             </table>
           </div>
         </div>
+      </div>
 
-        <!-- Password Reset Modal -->
-        <div class="modal-overlay" id="admin-pwd-modal" style="display:none; align-items:center; justify-content:center; z-index: 9999;">
-          <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 90%; max-width: 440px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); position: relative;">
-            <button onclick="closeAdminPasswordModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer;">
-              <i class="fas fa-times"></i>
-            </button>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-              <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
-                <i class="fas fa-key"></i>
-              </div>
-              <div>
-                <h3 style="color:#fff; margin:0; font-size: 1.15rem;">Set User Password</h3>
-                <p id="admin-modal-username" style="color:var(--text-muted); margin:0; font-size: 0.85rem;"></p>
-              </div>
+      <!-- TAB 2: LIVE LOGIN AUDIT STREAM -->
+      <div id="admin-view-logins" style="${adminActiveTab === 'logins' ? 'display:block;' : 'display:none;'}">
+        <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+          <div style="padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 style="margin:0; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-clock-rotate-left" style="color:#10b981;"></i> Recent Login Sessions Stream
+              </h3>
+              <p style="margin:2px 0 0; font-size: 0.82rem; color: var(--text-muted);">
+                Audit log of all successful logins, device fingerprints, and client IP addresses
+              </p>
             </div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5;">
-              Enter a new password for this user. It will be securely hashed with bcrypt and updated in the database immediately.
-            </p>
-            <div class="form-group" style="margin-bottom: 20px;">
-              <label><i class="fas fa-lock"></i></label>
-              <input type="text" id="admin-new-password-input" placeholder="Enter new password (min 6 chars)" style="flex:1; background:none; border:none; outline:none; color:#fff; padding:12px 10px;">
-            </div>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-              <button class="btn btn-outline btn-sm" onclick="closeAdminPasswordModal()">Cancel</button>
-              <button class="btn btn-primary btn-sm" onclick="submitAdminPasswordReset()">
-                <i class="fas fa-check"></i> Update Password
-              </button>
-            </div>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.75rem;">
+              Latest 50 Events
+            </span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.6px;">
+                  <th style="padding: 14px 20px;">User & Email</th>
+                  <th style="padding: 14px 20px;">Login Time</th>
+                  <th style="padding: 14px 20px;">IP Address</th>
+                  <th style="padding: 14px 20px;">Device & OS</th>
+                  <th style="padding: 14px 20px;">Browser</th>
+                  <th style="padding: 14px 20px; text-align: right;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="admin-logins-tbody">
+                ${renderAdminLoginsRows(adminLoginsCache, currentSearch)}
+              </tbody>
+            </table>
           </div>
         </div>
-
       </div>
-    `;
-  } catch (err) {
-    app.innerHTML = `
-      <div class="page-container" style="padding: 60px 20px;">
-        <div class="empty-state" style="max-width: 500px; margin: 40px auto; padding: 40px; background: var(--bg-secondary); border-radius: 16px; text-align: center;">
-          <i class="fas fa-triangle-exclamation" style="font-size: 2.5rem; color: #ef4444; margin-bottom: 16px;"></i>
-          <h2 style="color:#fff;">Failed to Load Admin Panel</h2>
-          <p style="color:var(--text-muted);">${escapeHtml(err.message)}</p>
-          <button class="btn btn-primary" onclick="renderAdminPage()"><i class="fas fa-rotate"></i> Try Again</button>
+
+      <!-- Password Reset Modal -->
+      <div class="modal-overlay" id="admin-pwd-modal" style="display:none; align-items:center; justify-content:center; z-index: 9999;">
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 90%; max-width: 440px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); position: relative;">
+          <button onclick="closeAdminPasswordModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer;">
+            <i class="fas fa-times"></i>
+          </button>
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+              <i class="fas fa-key"></i>
+            </div>
+            <div>
+              <h3 style="color:#fff; margin:0; font-size: 1.15rem;">Set User Password</h3>
+              <p id="admin-modal-username" style="color:var(--text-muted); margin:0; font-size: 0.85rem;"></p>
+            </div>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5;">
+            Enter a new password for this user. It will be securely hashed with bcrypt and updated in the database immediately.
+          </p>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label><i class="fas fa-lock"></i></label>
+            <input type="text" id="admin-new-password-input" placeholder="Enter new password (min 6 chars)" style="flex:1; background:none; border:none; outline:none; color:#fff; padding:12px 10px;">
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn btn-outline btn-sm" onclick="closeAdminPasswordModal()">Cancel</button>
+            <button class="btn btn-primary btn-sm" onclick="submitAdminPasswordReset()">
+              <i class="fas fa-check"></i> Update Password
+            </button>
+          </div>
         </div>
       </div>
-    `;
+
+    </div>
+  `;
+
+  if (scrollY > 0) {
+    window.scrollTo(0, scrollY);
   }
 }
 
-function renderAdminUsersRows(users) {
-  if (!users || users.length === 0) {
-    return `<tr><td colspan="6" style="padding: 30px; text-align: center; color: var(--text-muted);">No users found matching query</td></tr>`;
+function renderAdminUsersRows(users, query = '') {
+  const q = (query || '').toLowerCase().trim();
+  const list = q ? users.filter(u => 
+    u.username.toLowerCase().includes(q) || 
+    (u.email && u.email.toLowerCase().includes(q)) ||
+    (u.last_ip && u.last_ip.toLowerCase().includes(q)) ||
+    (u.device_type && u.device_type.toLowerCase().includes(q))
+  ) : users;
+
+  if (!list || list.length === 0) {
+    return `<tr><td colspan="7" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-user-slash" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No registered users match your search query</td></tr>`;
   }
 
-  return users.map(u => {
+  return list.map(u => {
     const isOwner = Boolean(u.is_admin);
-    const dateStr = u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown';
+    const status = getAdminUserStatus(u);
+    const joinedStr = u.created_at ? formatAdminFullDate(u.created_at) : 'Unknown';
+    const lastIpStr = u.last_ip || 'No IP logged';
+
+    // Device icon
+    let devIcon = 'fa-laptop';
+    if (u.device_type === 'Mobile') devIcon = 'fa-mobile-screen';
+    else if (u.device_type === 'Tablet') devIcon = 'fa-tablet-screen-button';
+    else if (u.device_type === 'Bot/Tool') devIcon = 'fa-robot';
 
     return `
       <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+        <!-- User identity -->
         <td style="padding: 14px 20px;">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <img src="${u.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.username}`}" alt="${escapeHtml(u.username)}" style="width: 36px; height: 36px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); flex-shrink: 0;">
+            <div style="position: relative;">
+              <img src="${u.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.username}`}" alt="${escapeHtml(u.username)}" style="width: 38px; height: 38px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); flex-shrink: 0; display: block;">
+              ${status.isOnline ? `<span class="status-pulse-dot" style="position: absolute; bottom: 0; right: 0; border: 2px solid var(--bg-secondary);"></span>` : ''}
+            </div>
             <div>
               <div style="font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px;">
                 ${escapeHtml(u.username)}
                 ${isOwner ? '<span title="Site Owner / Super Admin" style="color:#eab308; font-size: 0.8rem;"><i class="fas fa-crown"></i></span>' : ''}
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">ID: #${u.id}</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted); display:flex; align-items:center; gap:6px;">
+                <span>ID: #${u.id}</span>
+                ${isOwner ? '<span style="color:#34d399; font-weight:700;">Super Admin</span>' : '<span style="color:var(--text-secondary);">Member</span>'}
+              </div>
             </div>
           </div>
         </td>
 
+        <!-- Email & IP -->
         <td style="padding: 14px 20px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: var(--text-primary); font-family: monospace; font-size: 0.85rem;">${escapeHtml(u.email)}</span>
-            <button onclick="navigator.clipboard.writeText('${escapeHtml(u.email)}'); showToast('Email copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.75rem;" title="Copy email">
-              <i class="fas fa-copy"></i>
-            </button>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: var(--text-primary); font-family: monospace; font-size: 0.84rem;">${escapeHtml(u.email)}</span>
+              <button onclick="navigator.clipboard.writeText('${escapeHtml(u.email)}'); showToast('Email copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.72rem;" title="Copy email">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="admin-ip-pill" title="Last recorded IP address">
+                <i class="fas fa-network-wired" style="color:#60a5fa;"></i> ${escapeHtml(lastIpStr)}
+              </span>
+              ${u.last_ip ? `
+                <button onclick="navigator.clipboard.writeText('${escapeHtml(u.last_ip)}'); showToast('IP copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; font-size: 0.7rem;" title="Copy IP">
+                  <i class="fas fa-copy"></i>
+                </button>
+              ` : ''}
+            </div>
           </div>
         </td>
 
+        <!-- Live Status & Last Active -->
         <td style="padding: 14px 20px;">
-          ${isOwner 
-            ? `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-shield"></i> Admin</span>`
-            : `<span style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Member</span>`
-          }
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            ${status.badgeHtml}
+            <span style="font-size: 0.72rem; color: var(--text-muted);" title="${escapeHtml(status.timeLabel)}">
+              ${u.last_login ? `Login: ${formatAdminRelativeTime(u.last_login)}` : 'Joined: ' + formatAdminRelativeTime(u.created_at)}
+            </span>
+          </div>
         </td>
 
+        <!-- Device & Login Count -->
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">
+            <span class="admin-device-pill">
+              <i class="fas ${devIcon}"></i> ${escapeHtml(u.device_type || 'Desktop')}
+            </span>
+            <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.73rem; padding: 2px 8px; border-radius: 12px; background: rgba(234, 179, 8, 0.12); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 700;">
+              <i class="fas fa-fire-flame-curved"></i> ${u.login_count || 1} logins
+            </span>
+          </div>
+        </td>
+
+        <!-- Activity Metrics -->
         <td style="padding: 14px 20px;">
           <div style="font-size: 0.85rem; color: var(--text-primary); font-weight: 600;">
             <i class="fas fa-eye" style="color: #60a5fa; margin-right: 4px;"></i> ${u.watched_count || 0} eps
           </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">
-            ${u.watchlist_count || 0} watchlist · ${u.comments_count || 0} comments
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 3px;">
+            ${u.watchlist_count || 0} saved · ${u.comments_count || 0} cmts
           </div>
         </td>
 
-        <td style="padding: 14px 20px; color: var(--text-muted); font-size: 0.8rem; white-space: nowrap;">
-          ${dateStr}
+        <!-- Joined Date -->
+        <td style="padding: 14px 20px; color: var(--text-muted); font-size: 0.78rem; white-space: nowrap;">
+          ${joinedStr}
         </td>
 
+        <!-- Actions -->
         <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
           <button class="btn btn-outline btn-sm" onclick="openAdminPasswordModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email)}')" style="padding: 6px 12px; font-size: 0.78rem; margin-right: 6px;" title="Reset password">
             <i class="fas fa-key"></i> Set Password
@@ -3587,15 +3843,154 @@ function renderAdminUsersRows(users) {
   }).join('');
 }
 
-function filterAdminUsersTable(query) {
-  const tbody = document.getElementById('admin-users-tbody');
-  if (!tbody) return;
+function renderAdminLoginsRows(logins, query = '') {
   const q = (query || '').toLowerCase().trim();
-  const filtered = adminUsersCache.filter(u => 
-    u.username.toLowerCase().includes(q) || 
-    (u.email && u.email.toLowerCase().includes(q))
-  );
-  tbody.innerHTML = renderAdminUsersRows(filtered);
+  const list = q ? logins.filter(l => 
+    l.username.toLowerCase().includes(q) || 
+    (l.email && l.email.toLowerCase().includes(q)) ||
+    (l.ip_address && l.ip_address.toLowerCase().includes(q)) ||
+    (l.device_type && l.device_type.toLowerCase().includes(q)) ||
+    (l.browser && l.browser.toLowerCase().includes(q)) ||
+    (l.os && l.os.toLowerCase().includes(q))
+  ) : logins;
+
+  if (!list || list.length === 0) {
+    return `<tr><td colspan="6" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-list-check" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No login records match your search query</td></tr>`;
+  }
+
+  return list.map(l => {
+    const isOwner = Boolean(l.is_admin);
+    const loginDate = parseSqliteDate(l.logged_in_at);
+    const relTime = formatAdminRelativeTime(l.logged_in_at);
+    const fullTime = loginDate ? formatAdminFullDate(loginDate) : 'Unknown';
+
+    // Device icon
+    let devIcon = 'fa-laptop';
+    if (l.device_type === 'Mobile') devIcon = 'fa-mobile-screen';
+    else if (l.device_type === 'Tablet') devIcon = 'fa-tablet-screen-button';
+    else if (l.device_type === 'Bot/Tool') devIcon = 'fa-robot';
+
+    return `
+      <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+        <!-- User identity -->
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="${l.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${l.username}`}" alt="${escapeHtml(l.username)}" style="width: 34px; height: 34px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); flex-shrink: 0;">
+            <div>
+              <div style="font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; font-size: 0.86rem;">
+                ${escapeHtml(l.username)}
+                ${isOwner ? '<span title="Super Admin" style="color:#eab308; font-size: 0.75rem;"><i class="fas fa-crown"></i></span>' : ''}
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(l.email)}</div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Login Timestamp -->
+        <td style="padding: 14px 20px; white-space: nowrap;">
+          <div style="font-weight: 600; color: #fff; font-size: 0.84rem;">${relTime}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">${fullTime}</div>
+        </td>
+
+        <!-- IP Address -->
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="admin-ip-pill">
+              <i class="fas fa-network-wired" style="color:#60a5fa;"></i> ${escapeHtml(l.ip_address || '127.0.0.1')}
+            </span>
+            ${l.ip_address ? `
+              <button onclick="navigator.clipboard.writeText('${escapeHtml(l.ip_address)}'); showToast('IP copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; font-size: 0.7rem;" title="Copy IP">
+                <i class="fas fa-copy"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+
+        <!-- Device & OS -->
+        <td style="padding: 14px 20px;">
+          <span class="admin-device-pill">
+            <i class="fas ${devIcon}"></i> ${escapeHtml(l.device_type || 'Desktop')} · ${escapeHtml(l.os || 'Unknown OS')}
+          </span>
+        </td>
+
+        <!-- Browser -->
+        <td style="padding: 14px 20px;">
+          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+            <i class="fas fa-window-maximize" style="color:#38bdf8; font-size: 0.75rem;"></i> ${escapeHtml(l.browser || 'Browser')}
+          </span>
+        </td>
+
+        <!-- Status -->
+        <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
+          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fas fa-check-circle"></i> Authenticated
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function switchAdminTab(tab) {
+  adminActiveTab = tab;
+  const usersView = document.getElementById('admin-view-users');
+  const loginsView = document.getElementById('admin-view-logins');
+  const btnUsers = document.getElementById('tab-btn-users');
+  const btnLogins = document.getElementById('tab-btn-logins');
+
+  if (tab === 'users') {
+    if (usersView) usersView.style.display = 'block';
+    if (loginsView) loginsView.style.display = 'none';
+    if (btnUsers) btnUsers.classList.add('active');
+    if (btnLogins) btnLogins.classList.remove('active');
+  } else {
+    if (usersView) usersView.style.display = 'none';
+    if (loginsView) loginsView.style.display = 'block';
+    if (btnUsers) btnUsers.classList.remove('active');
+    if (btnLogins) btnLogins.classList.add('active');
+  }
+
+  // Reapply current search filter to newly visible tab
+  const searchInput = document.getElementById('admin-table-search');
+  if (searchInput) filterAdminCurrentTab(searchInput.value);
+}
+
+function filterAdminCurrentTab(query) {
+  if (adminActiveTab === 'users') {
+    const tbody = document.getElementById('admin-users-tbody');
+    if (tbody) tbody.innerHTML = renderAdminUsersRows(adminUsersCache, query);
+  } else {
+    const tbody = document.getElementById('admin-logins-tbody');
+    if (tbody) tbody.innerHTML = renderAdminLoginsRows(adminLoginsCache, query);
+  }
+}
+
+function startAdminAutoRefresh() {
+  if (adminAutoRefreshTimer) {
+    clearInterval(adminAutoRefreshTimer);
+  }
+  adminAutoRefreshTimer = setInterval(async () => {
+    if (!adminAutoRefreshEnabled) return;
+    // Only refresh if currently on /admin page
+    if (window.location.pathname !== '/admin') {
+      clearInterval(adminAutoRefreshTimer);
+      adminAutoRefreshTimer = null;
+      return;
+    }
+    await fetchAdminData(false);
+  }, 15000); // Poll every 15s
+}
+
+function toggleAdminAutoRefresh() {
+  adminAutoRefreshEnabled = !adminAutoRefreshEnabled;
+  const btn = document.getElementById('admin-auto-refresh-btn');
+  if (btn) {
+    btn.innerHTML = `
+      <span class="status-pulse-dot" style="${adminAutoRefreshEnabled ? '' : 'background:#64748b; animation:none;'}"></span>
+      <span>Live Sync: ${adminAutoRefreshEnabled ? 'ON (15s)' : 'PAUSED'}</span>
+    `;
+  }
+  showToast(adminAutoRefreshEnabled ? 'Real-time live sync enabled (15s)' : 'Live sync paused', 'info');
 }
 
 function openAdminPasswordModal(userId, username, email) {
@@ -3643,7 +4038,7 @@ async function deleteAdminUserAccount(userId, username) {
   try {
     const res = await api(`/admin/users/${userId}`, { method: 'DELETE' });
     showToast(res.message || 'User deleted successfully', 'success');
-    renderAdminPage();
+    fetchAdminData(true);
   } catch (err) {
     showToast(err.message || 'Failed to delete user', 'error');
   }
