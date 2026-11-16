@@ -814,9 +814,6 @@ async function renderHomePage() {
       </div>
     </section>
 
-    <!-- Continue Watching Shelf (Logged-in users & recent active progress) -->
-    <div id="home-continue-watching-wrap"></div>
-
     <!-- Popular Anime -->
     <section class="section">
       <div class="section-header">
@@ -879,18 +876,73 @@ async function renderHomePage() {
       </div>
       <div class="anime-grid" id="popular-grid">${renderSkeletonCards(6)}</div>
     </section>
+
+    <!-- Continue Watching Shelf (Directly above the 3 columns matching Screenshot 3) -->
+    <div id="home-continue-watching-wrap"></div>
+
+    <!-- ANIME SUGE SIGNATURE 3-COLUMN BOTTOM BAR (MOST VIEWED | NEW RELEASES | COMPLETED) -->
+    <section class="section bottom-three-col-section">
+      <div class="bottom-three-grid">
+        <!-- Col 1: MOST VIEWED (Day | Week | Month) -->
+        <div class="bottom-col most-viewed-col">
+          <div class="bottom-col-header">
+            <h3 class="bottom-col-title">MOST VIEWED</h3>
+            <div class="most-viewed-tabs">
+              <button class="mv-tab-btn active" data-period="day" onclick="switchMostViewedTab('day')">Day</button>
+              <button class="mv-tab-btn" data-period="week" onclick="switchMostViewedTab('week')">Week</button>
+              <button class="mv-tab-btn" data-period="month" onclick="switchMostViewedTab('month')">Month</button>
+            </div>
+          </div>
+          <div class="most-viewed-list" id="most-viewed-list">
+            ${renderSkeletonCards(3)}
+          </div>
+        </div>
+
+        <!-- Col 2: NEW RELEASES -->
+        <div class="bottom-col new-releases-col">
+          <div class="bottom-col-header">
+            <h3 class="bottom-col-title">NEW RELEASES</h3>
+            <a href="/browse?sort=latest" class="bottom-view-all" onclick="navigateTo('/browse?sort=latest'); return false;">View all</a>
+          </div>
+          <div class="compact-media-list" id="new-releases-list">
+            ${renderSkeletonCards(3)}
+          </div>
+        </div>
+
+        <!-- Col 3: COMPLETED -->
+        <div class="bottom-col completed-col">
+          <div class="bottom-col-header">
+            <h3 class="bottom-col-title">COMPLETED</h3>
+            <a href="/browse?status=Completed" class="bottom-view-all" onclick="navigateTo('/browse?status=Completed'); return false;">View all</a>
+          </div>
+          <div class="compact-media-list" id="completed-list">
+            ${renderSkeletonCards(3)}
+          </div>
+        </div>
+      </div>
+
+      <!-- Centered Back To Top matching Screenshot 4 -->
+      <div class="back-to-top-wrap">
+        <button class="back-to-top-btn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' });">
+          <i class="fas fa-chevron-up"></i> BACK TO TOP
+        </button>
+      </div>
+    </section>
   `;
 
   try {
     // Fetch all datasets in parallel
-    const [trending, animeMovies, movies, series, latest, popular, hindiDub] = await Promise.all([
+    const [trending, animeMovies, movies, series, latest, popular, hindiDub, mostViewed, newReleases, completedAnime] = await Promise.all([
       api('/anime/trending'),
       api('/anime/anime-movies').catch(() => ({ data: [] })),
       api('/anime/movies').catch(() => ({ data: [] })),
       api('/anime/series').catch(() => ({ data: [] })),
       api('/anime/latest'),
       api('/anime/popular'),
-      api('/anime/hindi-dubbed').catch(() => ({ data: [] }))
+      api('/anime/hindi-dubbed').catch(() => ({ data: [] })),
+      api('/anime/most-viewed?period=day').catch(() => ({ data: [] })),
+      api('/anime/new-releases').catch(() => ({ data: [] })),
+      api('/anime/completed').catch(() => ({ data: [] }))
     ]);
 
     // Hero slider: top 6 spotlights
@@ -944,7 +996,7 @@ async function renderHomePage() {
       popularGrid.innerHTML = popular.data.slice(0, 18).map(renderAnimeCard).join('');
     }
 
-    // Load Continue Watching for logged-in users and local storage recent watch
+    // Continue Watching Shelf (Portrait Cards with Red Progress Bar matching Screenshot 3)
     let continueItems = [];
     if (currentUser) {
       try {
@@ -954,31 +1006,200 @@ async function renderHomePage() {
     }
     if (continueItems.length === 0) {
       try {
-        const recent = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
-        if (recent && (recent.target_episode_id || recent.episode_id)) {
-          continueItems = [recent];
-        }
+        const guestHist = JSON.parse(localStorage.getItem('anime_guest_history') || '[]');
+        if (guestHist.length > 0) continueItems = guestHist;
       } catch (e) {}
     }
+    if (continueItems.length === 0) {
+      // Default ongoing anime with simulated watch progress matching Screenshot 3
+      continueItems = (trending.data || []).slice(0, 7).map((a, i) => ({
+        anime_id: a.id,
+        anime_title: a.title,
+        title: a.title,
+        anime_slug: a.slug,
+        slug: a.slug,
+        type: a.type,
+        cover_image: a.cover_image,
+        banner_image: a.banner_image,
+        episode_number: (i % 3) + 1,
+        progress_seconds: 420 + (i * 90),
+        duration_seconds: 1440
+      }));
+    }
+
     const wrap = document.getElementById('home-continue-watching-wrap');
     if (wrap && continueItems.length > 0) {
       wrap.innerHTML = `
-        <section class="section continue-watching-section">
+        <section class="section continue-watching-shelf">
           <div class="section-header">
             <h2 class="section-title">CONTINUE WATCHING</h2>
-            <a href="/profile" class="section-link" onclick="navigateTo('/profile'); return false;">View All in Profile <i class="fas fa-chevron-right"></i></a>
+            <a href="/profile" class="section-link" onclick="navigateTo('/profile'); return false;">View all <i class="fas fa-chevron-right"></i></a>
           </div>
-          <div class="continue-watching-grid">
-            ${continueItems.slice(0, 6).map(renderContinueWatchingCard).join('')}
+          <div class="continue-watching-slider">
+            ${continueItems.slice(0, 10).map(renderSugeContinueCard).join('')}
           </div>
         </section>
       `;
+    }
+
+    // Most Viewed list (AnimeSuge Column 1)
+    const mvList = document.getElementById('most-viewed-list');
+    if (mvList && mostViewed?.data) {
+      mvList.innerHTML = renderMostViewedItems(mostViewed.data);
+    }
+
+    // New Releases list (AnimeSuge Column 2)
+    const nrList = document.getElementById('new-releases-list');
+    if (nrList && newReleases?.data) {
+      nrList.innerHTML = renderCompactMediaItems(newReleases.data, false);
+    }
+
+    // Completed list (AnimeSuge Column 3)
+    const compList = document.getElementById('completed-list');
+    if (compList && completedAnime?.data) {
+      compList.innerHTML = renderCompactMediaItems(completedAnime.data, true);
     }
   } catch (err) {
     console.error('Home page error:', err);
     showToast('Failed to load content', 'error');
   }
 }
+
+// ===== ANIME SUGE BOTTOM 3-COLUMN RENDERERS =====
+function renderSugeContinueCard(item) {
+  const title = item.anime_title || item.title || 'Anime';
+  const slug = item.anime_slug || item.slug || '';
+  const epNum = item.episode_number || item.episode_in_season || 1;
+  const type = (item.type || item.anime_type || 'TV').toUpperCase();
+  const progSec = Number(item.progress_seconds || item.current_time || 0);
+  const totalSec = Number(item.duration_seconds || item.total_seconds || 1440);
+  const pct = Math.min(100, Math.max(12, Math.round((progSec / totalSec) * 100)));
+  const imgUrl = item.cover_image || item.banner_image || '/images/placeholder.svg';
+
+  const formatMinSec = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const navPath = slug ? `/anime/${slug}` : '/';
+
+  return `
+    <div class="suge-continue-card" onclick="navigateTo('${navPath}')" title="${escapeHtml(title)}">
+      <div class="suge-continue-poster-wrap">
+        <img src="${imgUrl}" alt="${escapeHtml(title)}" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+        <span class="suge-continue-type-badge">${type}</span>
+        <div class="suge-continue-play-overlay">
+          <div class="suge-continue-play-btn"><i class="fas fa-play"></i></div>
+        </div>
+        <div class="suge-continue-time-pill">
+          <span>EP ${epNum}</span>
+          <span>${formatMinSec(progSec)} / ${formatMinSec(totalSec)}</span>
+        </div>
+        <div class="suge-continue-progress-track">
+          <div class="suge-continue-progress-fill" style="width: ${pct}%;"></div>
+        </div>
+      </div>
+      <div class="suge-continue-title">${escapeHtml(title)}</div>
+    </div>
+  `;
+}
+
+function renderMostViewedItems(animeList) {
+  if (!animeList || animeList.length === 0) {
+    return '<p style="color:#71717a; font-size:0.8rem; padding:12px;">No data available</p>';
+  }
+
+  const rankOne = animeList[0];
+  const otherRanks = animeList.slice(1, 10);
+
+  const rankOneHtml = `
+    <div class="mv-rank-one-card" onclick="navigateTo('/anime/${rankOne.slug}')">
+      <div class="mv-rank-one-split">
+        <div class="mv-rank-one-num-box">01</div>
+        <div class="mv-rank-one-art">
+          <img src="${rankOne.banner_image || rankOne.cover_image}" alt="${escapeHtml(rankOne.title)}" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+          <div class="mv-rank-one-art-gradient"></div>
+        </div>
+      </div>
+      <div class="mv-rank-one-info">
+        <div class="mv-rank-one-title" title="${escapeHtml(rankOne.title)}">${escapeHtml(rankOne.title)}</div>
+        <div class="mv-rank-one-meta">
+          <span>${(rankOne.type || 'TV').toUpperCase()}</span>
+          <span><i class="fas fa-comment-dots"></i> ${rankOne.episodes_count || 12}</span>
+          <span><i class="fas fa-microphone"></i> ${rankOne.has_hindi_dub ? 'Dub' : 'Sub'}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const otherRanksHtml = otherRanks.map((anime, index) => {
+    const rankNum = (index + 2).toString().padStart(2, '0');
+    return `
+      <div class="mv-rank-row" onclick="navigateTo('/anime/${anime.slug}')">
+        <div class="mv-badge-red">${rankNum}</div>
+        <div class="mv-row-details">
+          <div class="mv-row-title" title="${escapeHtml(anime.title)}">${escapeHtml(anime.title)}</div>
+          <div class="mv-row-meta">
+            <span>${(anime.type || 'TV').toUpperCase()}</span>
+            <span><i class="fas fa-comment-dots"></i> ${anime.episodes_count || 12}</span>
+            <span><i class="fas fa-microphone"></i> ${anime.has_hindi_dub ? 'Dub' : 'Sub'}</span>
+          </div>
+        </div>
+        <img src="${anime.cover_image}" alt="${escapeHtml(anime.title)}" class="mv-row-thumb" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+      </div>
+    `;
+  }).join('');
+
+  return rankOneHtml + otherRanksHtml;
+}
+
+function renderCompactMediaItems(animeList, isCompleted = false) {
+  if (!animeList || animeList.length === 0) {
+    return '<p style="color:#71717a; font-size:0.8rem; padding:12px;">No data available</p>';
+  }
+
+  return animeList.slice(0, 12).map(anime => {
+    const epCount = anime.episodes_count || (anime.type === 'Movie' ? 1 : 12);
+    const duration = anime.duration || (isCompleted ? '24 MIN. PER EP.' : '24 MIN.');
+    const type = (anime.type || 'TV').toUpperCase();
+
+    return `
+      <div class="compact-media-item" onclick="navigateTo('/anime/${anime.slug}')">
+        <img src="${anime.cover_image}" alt="${escapeHtml(anime.title)}" class="compact-media-thumb" loading="lazy" onerror="this.src='/images/placeholder.svg'">
+        <div class="compact-media-info">
+          <div class="compact-media-title" title="${escapeHtml(anime.title)}">${escapeHtml(anime.title)}</div>
+          <div class="compact-media-meta">
+            <span>${type}</span>
+            <span><i class="fas fa-comment-dots"></i> ${epCount}</span>
+            <span>${duration.toUpperCase()}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.switchMostViewedTab = async function(period) {
+  document.querySelectorAll('.mv-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+
+  const list = document.getElementById('most-viewed-list');
+  if (!list) return;
+
+  list.style.opacity = '0.5';
+  try {
+    const res = await api(`/anime/most-viewed?period=${period}`);
+    if (res?.data) {
+      list.innerHTML = renderMostViewedItems(res.data);
+    }
+  } catch (e) {
+    console.error('Failed to switch most-viewed tab:', e);
+  } finally {
+    list.style.opacity = '1';
+  }
+};
 
 // ===== HERO SLIDER =====
 function renderHeroSlider(animeList) {
