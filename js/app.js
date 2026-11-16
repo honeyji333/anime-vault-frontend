@@ -1896,7 +1896,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
   const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id && ep.tmdb_id)) && !isAnime;
   const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
 
-  if (serverId === 'official' && ep.youtube_video_id && !isWebSeries && !isLiveMovie) {
+  if (serverId === 'official' && ep.youtube_video_id) {
     url = `https://www.youtube-nocookie.com/embed/${ep.youtube_video_id}?autoplay=1&rel=0&enablejsapi=1`;
   } else {
     if (isWebSeries || isLiveMovie) {
@@ -2504,7 +2504,7 @@ async function renderWatchPage(episodeId) {
     const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id)) && !isAnime;
     const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
-    const officialVideoId = (isWebSeriesOrLive || isKapilShow) ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
+    const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
     const serversList = isWebSeriesOrLive ? [...WEBSERIES_SERVERS] : [...ANIME_SERVERS];
     if (officialVideoId) {
       serversList.unshift({
