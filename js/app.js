@@ -1295,18 +1295,41 @@ async function renderBrowsePage(params) {
   const sort = params?.get('sort') || 'rating';
   const search = params?.get('search') || '';
   const dub = params?.get('dub') || '';
+  const category = params?.get('category') || '';
   const page = parseInt(params?.get('page')) || 1;
 
   const isHindi = dub === 'hindi';
   const isAnimeMovie = type === 'AnimeMovie' || type === 'anime-movies';
-  const isLiveMovie = type === 'Movie' || type === 'movies';
-  const isWebSeries = type === 'ONA' || type === 'series';
+  const isLiveMovie = type === 'Movie' || type === 'movies' || category === 'movie' || category === 'movies' || category === 'live_action';
+  const isWebSeries = type === 'ONA' || type === 'series' || category === 'series' || category === 'web-series';
 
   let pageTitle = 'Browse Anime';
   let pageDesc = 'Discover your next favorite anime from our collection';
   let pageIcon = 'fa-compass';
 
-  if (isHindi) {
+  if (isLiveMovie) {
+    if (genre) {
+      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      pageTitle = `${formattedGenre} Movies 🍿`;
+      pageDesc = `Explore trending ${formattedGenre} blockbuster movies (Bollywood & Hollywood) with multi-server streaming`;
+      pageIcon = 'fa-film';
+    } else {
+      pageTitle = 'Movies 🍿';
+      pageDesc = 'Top 200 trending and popular Bollywood & Hollywood blockbuster movies with multi-server streaming';
+      pageIcon = 'fa-clapperboard';
+    }
+  } else if (isWebSeries) {
+    if (genre) {
+      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      pageTitle = `${formattedGenre} Web Series 📺`;
+      pageDesc = `Binge-worthy ${formattedGenre} web series (Mirzapur, Sacred Games, Breaking Bad & more)`;
+      pageIcon = 'fa-tv';
+    } else {
+      pageTitle = 'Web Series 📺';
+      pageDesc = 'Binge-worthy Indian & International web series (Mirzapur, Sacred Games, Panchayat, Breaking Bad & more)';
+      pageIcon = 'fa-tv';
+    }
+  } else if (isHindi) {
     pageTitle = 'Hindi Dubbed Anime & Shows 🇮🇳';
     pageDesc = 'Watch top anime in Hindi Dub (Naruto, Dragon Ball, Demon Slayer, Jujutsu Kaisen, Fairy Tail & more)';
     pageIcon = 'fa-flag';
@@ -1315,7 +1338,7 @@ async function renderBrowsePage(params) {
     pageTitle = `${formattedGenre} Anime ⚡`;
     pageDesc = `Explore our collection of ${formattedGenre} anime titles with instant multi-server streaming`;
     pageIcon = 'fa-tags';
-  } else if (type && !isAnimeMovie && !isLiveMovie && !isWebSeries) {
+  } else if (type && !isAnimeMovie) {
     pageTitle = `${type.toUpperCase()} Anime 🎬`;
     pageDesc = `Browse all ${type.toUpperCase()} anime and series with HD streaming`;
     pageIcon = 'fa-layer-group';
@@ -1323,14 +1346,6 @@ async function renderBrowsePage(params) {
     pageTitle = 'Anime Movies 🎬';
     pageDesc = 'Explore iconic anime films (Your Name, Spirited Away, Suzume, Mugen Train, Akira & more) in full HD';
     pageIcon = 'fa-film';
-  } else if (isLiveMovie) {
-    pageTitle = 'Movies 🍿';
-    pageDesc = 'Top 200 trending and popular Bollywood & Hollywood blockbuster movies with multi-server streaming';
-    pageIcon = 'fa-clapperboard';
-  } else if (isWebSeries) {
-    pageTitle = 'Web Series 📺';
-    pageDesc = 'Binge-worthy Indian & International web series (Mirzapur, Sacred Games, Panchayat, Breaking Bad & more)';
-    pageIcon = 'fa-tv';
   }
 
   app.innerHTML = `
@@ -1396,9 +1411,10 @@ async function renderBrowsePage(params) {
     </div>
   `;
 
-  // Load genres into dropdown
+  // Load genres into dropdown separated by section (Anime vs Movies vs Series)
   try {
-    const genresRes = await api('/genres');
+    const genreParam = isLiveMovie ? 'category=movie' : (isWebSeries ? 'category=series' : 'category=anime');
+    const genresRes = await api(`/genres?${genreParam}`);
     const genreSelect = document.getElementById('filter-genre');
     if (genreSelect && genresRes?.data) {
       genreSelect.innerHTML = '<option value="">All Genres</option>';
@@ -1425,11 +1441,13 @@ async function loadBrowseResults(page = 1) {
   const type = document.getElementById('filter-type')?.value || urlParams.get('type') || '';
   const status = document.getElementById('filter-status')?.value || urlParams.get('status') || '';
   const sort = document.getElementById('filter-sort')?.value || urlParams.get('sort') || 'rating';
+  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : ''));
 
   const queryParts = [];
   if (dub) queryParts.push(`dub=${dub}`);
   if (genre) queryParts.push(`genre=${genre}`);
   if (type) queryParts.push(`type=${type}`);
+  if (category) queryParts.push(`category=${category}`);
   if (status) queryParts.push(`status=${status}`);
   if (sort) queryParts.push(`sort=${sort}`);
   queryParts.push(`page=${page}`);
@@ -1441,7 +1459,7 @@ async function loadBrowseResults(page = 1) {
     const pagination = document.getElementById('browse-pagination');
 
     if (res.data.anime.length === 0) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-search"></i><h3>No anime found</h3><p>Try adjusting your filters</p></div>`;
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-search"></i><h3>No titles found</h3><p>Try adjusting your filters</p></div>`;
       pagination.innerHTML = '';
       return;
     }
@@ -1463,6 +1481,8 @@ async function loadBrowseResults(page = 1) {
 }
 
 function applyFilters() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const existingCategory = urlParams.get('category') || '';
   const dub = document.getElementById('filter-dub')?.value || '';
   const genre = document.getElementById('filter-genre')?.value || '';
   const type = document.getElementById('filter-type')?.value || '';
@@ -1476,8 +1496,39 @@ function applyFilters() {
   if (status) params.set('status', status);
   if (sort && sort !== 'rating') params.set('sort', sort);
 
+  if (type === 'Movie') {
+    params.set('category', 'movie');
+  } else if (type === 'AnimeMovie') {
+    params.set('category', 'anime');
+  } else if (existingCategory === 'movie' && (type === 'Movie' || !type)) {
+    params.set('category', 'movie');
+  } else if (existingCategory === 'series') {
+    params.set('category', 'series');
+  }
+
   const newUrl = '/browse' + (params.toString() ? '?' + params.toString() : '');
   history.replaceState({}, '', newUrl);
+
+  // If user changed type between movie/anime, reload genres in dropdown to reflect that section
+  const isMovieNow = type === 'Movie' || params.get('category') === 'movie';
+  const genreCategoryParam = isMovieNow ? 'category=movie' : 'category=anime';
+  api(`/genres?${genreCategoryParam}`).then(res => {
+    const genreSelect = document.getElementById('filter-genre');
+    if (genreSelect && res?.data) {
+      const curGenre = genreSelect.value;
+      genreSelect.innerHTML = '<option value="">All Genres</option>';
+      res.data.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.slug;
+        opt.textContent = `${g.name} (${g.anime_count})`;
+        if (curGenre && (g.slug.toLowerCase() === curGenre.toLowerCase() || g.name.toLowerCase() === curGenre.toLowerCase())) {
+          opt.selected = true;
+        }
+        genreSelect.appendChild(opt);
+      });
+    }
+  }).catch(() => {});
+
   loadBrowseResults(1);
 }
 
