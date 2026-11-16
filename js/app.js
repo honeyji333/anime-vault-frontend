@@ -371,9 +371,9 @@ const HINDI_DUBBED_SLUGS = new Set([
 const ANIME_SERVERS = [
   {
     id: 'animeembed',
-    name: 'Server 1',
+    name: 'Vidstream',
     badge: 'FAST HD',
-    provider: 'AnimeEmbed Ultra HD',
+    provider: 'Vidstream Ultra HD',
     audio: ['sub', 'dub', 'hindi'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
@@ -386,9 +386,9 @@ const ANIME_SERVERS = [
   },
   {
     id: 'animeembed-mal',
-    name: 'Server 2',
+    name: 'MegaCloud',
     badge: 'STABLE HD',
-    provider: 'AnimeEmbed Pro (MAL Engine)',
+    provider: 'MegaCloud Engine',
     audio: ['sub', 'dub', 'hindi'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
@@ -398,7 +398,7 @@ const ANIME_SERVERS = [
   },
   {
     id: 'justplay',
-    name: 'Server 3',
+    name: 'JustPlay',
     badge: 'CINEMATIC HD',
     provider: 'JustPlay Stream',
     audio: ['sub', 'dub', 'hindi'],
@@ -410,9 +410,9 @@ const ANIME_SERVERS = [
   },
   {
     id: 'justplay-pahe',
-    name: 'Server 4',
+    name: 'Streamtape',
     badge: 'FAST STREAM',
-    provider: 'JustPlay Pahe',
+    provider: 'Streamtape HD',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const idParam = anilistId ? `ani=${anilistId}` : `mal=${malId || 21}`;
@@ -422,9 +422,9 @@ const ANIME_SERVERS = [
   },
   {
     id: 'vidcore-anime',
-    name: 'Server 5',
+    name: 'AutoEmbed',
     badge: 'UHD PRO',
-    provider: 'VidCore HD',
+    provider: 'AutoEmbed Ultra HD',
     audio: ['sub', 'dub'],
     build: ({ tmdbId, anilistId, episode, isMovie, season }) => {
       if (isMovie && tmdbId) {
@@ -2291,6 +2291,50 @@ window.toggleWatchTheater = function() {
   if (btn) btn.classList.toggle('active', watchState.theater);
 };
 
+// ===== AnimeSuge "Turn Off Light" (Cinema Dimmer) =====
+window.toggleWatchFocusLight = function() {
+  let dimmer = document.getElementById('cinema-dimmer');
+  if (!dimmer) {
+    dimmer = document.createElement('div');
+    dimmer.id = 'cinema-dimmer';
+    dimmer.className = 'cinema-dimmer';
+    dimmer.onclick = function() { window.toggleWatchFocusLight(); };
+    document.body.appendChild(dimmer);
+  }
+  const isDimmed = dimmer.classList.toggle('active');
+  const playerWrap = document.getElementById('watch-player-wrap');
+  if (playerWrap) {
+    playerWrap.classList.toggle('focused-cinema', isDimmed);
+  }
+  const btn = document.getElementById('light-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('light-active', isDimmed);
+    btn.innerHTML = isDimmed ? '<i class="fas fa-lightbulb"></i> Light ON' : '<i class="far fa-lightbulb"></i> Light';
+  }
+  showToast(isDimmed ? '💡 Cinema Dimmer: Background dimmed' : '💡 Lights turned on', 'info');
+};
+
+// ===== AnimeSuge Relative Seeking (J / L / Arrow Keys) =====
+window.seekWatchPlayerRelative = function(deltaSeconds) {
+  if (!watchState.ep) return;
+  const cur = Number(localStorage.getItem(`anime_prog_${watchState.ep.id}`)) || 0;
+  const target = Math.max(0, cur + deltaSeconds);
+  localStorage.setItem(`anime_prog_${watchState.ep.id}`, String(target));
+  dispatchPlayerSeek(target);
+  showToast(`${deltaSeconds > 0 ? '+ ' : ''}${deltaSeconds}s`, 'info');
+};
+
+// ===== AnimeSuge Play/Pause Controller =====
+window.toggleWatchPlayPause = function() {
+  const frame = document.getElementById('watch-iframe');
+  if (!frame || !frame.contentWindow) return;
+  try {
+    frame.contentWindow.postMessage({ channel: 'animeembed', command: 'toggle' }, '*');
+    frame.contentWindow.postMessage({ event: 'command', func: 'playVideo' }, '*');
+    frame.contentWindow.postMessage({ type: 'toggle' }, '*');
+  } catch (e) {}
+};
+
 window.toggleWatchFullscreen = function() {
   const wrap = document.getElementById('watch-player-wrap') || document.getElementById('watch-iframe');
   if (!wrap) return;
@@ -2561,18 +2605,21 @@ async function renderWatchPage(episodeId) {
             <div class="watch-controls-bar">
               <div class="watch-ctl-group">
                 ${ep.prevEpisode
-                  ? `<button class="player-ctl-btn" onclick="navigateTo('/watch/${ep.prevEpisode.id}')"><i class="fas fa-chevron-left"></i> Prev</button>`
+                  ? `<button class="player-ctl-btn" onclick="navigateTo('/watch/${ep.prevEpisode.id}')" title="Previous Episode (P / B)"><i class="fas fa-chevron-left"></i> Prev</button>`
                   : `<button class="player-ctl-btn" disabled><i class="fas fa-chevron-left"></i> Prev</button>`}
                 ${ep.nextEpisode
-                  ? `<button class="player-ctl-btn" onclick="navigateTo('/watch/${ep.nextEpisode.id}')">Next <i class="fas fa-chevron-right"></i></button>`
+                  ? `<button class="player-ctl-btn" onclick="navigateTo('/watch/${ep.nextEpisode.id}')" title="Next Episode (N)">Next <i class="fas fa-chevron-right"></i></button>`
                   : `<button class="player-ctl-btn" disabled>Next <i class="fas fa-chevron-right"></i></button>`}
-                <button class="player-ctl-btn" onclick="reloadWatchPlayer()" title="Reload stream">
+                <button class="player-ctl-btn" onclick="reloadWatchPlayer()" title="Reload stream (R)">
                   <i class="fas fa-rotate-right"></i> Reload
+                </button>
+                <button class="player-ctl-btn" id="light-toggle-btn" onclick="toggleWatchFocusLight()" title="Turn off light (Cinema Focus / L)">
+                  <i class="far fa-lightbulb"></i> Light
                 </button>
               </div>
 
               <div class="watch-ctl-group">
-                <button class="player-ctl-btn" onclick="toggleWatchFullscreen()" title="Fullscreen mode (Smart TV & Mobile)">
+                <button class="player-ctl-btn" onclick="toggleWatchFullscreen()" title="Fullscreen mode (F)">
                   <i class="fas fa-expand"></i> Fullscreen
                 </button>
                 <button class="player-ctl-btn ad-shield-btn ${watchState.adShield ? 'active' : 'off'}" id="adshield-btn" onclick="toggleWatchAdShield()" title="Safe Shield: 100% Anti-Nudity & Popups Blocked">
@@ -2582,7 +2629,7 @@ async function renderWatchPage(episodeId) {
                   <input type="checkbox" id="autonext-checkbox" ${watchState.autoNext ? 'checked' : ''} onchange="toggleWatchAutoNext()">
                   Auto-Next <span class="autonext-indicator ${watchState.autoNext ? 'active' : ''}">${watchState.autoNext ? 'ON' : 'OFF'}</span>
                 </label>
-                <button class="player-ctl-btn ${watchState.theater ? 'active' : ''}" id="theater-toggle-btn" onclick="toggleWatchTheater()" title="Theater mode">
+                <button class="player-ctl-btn ${watchState.theater ? 'active' : ''}" id="theater-toggle-btn" onclick="toggleWatchTheater()" title="Theater mode (T)">
                   <i class="fas fa-tv"></i> Theater
                 </button>
               </div>
@@ -4640,7 +4687,7 @@ async function init() {
     });
   }
 
-  // Keyboard shortcuts: / for search, Esc to close modals, N/P/T/R on player
+  // Keyboard shortcuts: / for search, Esc to close modals, N/P/T/R/L/Arrows on player
   document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
       e.preventDefault();
@@ -4650,6 +4697,10 @@ async function init() {
       document.getElementById('search-results')?.classList.remove('active');
       closeAuthModal();
       document.getElementById('mobile-menu')?.classList.remove('active');
+      const dimmer = document.getElementById('cinema-dimmer');
+      if (dimmer && dimmer.classList.contains('active')) {
+        toggleWatchFocusLight();
+      }
     }
     if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
       if (window.location.pathname.startsWith('/watch/') && watchState.ep) {
@@ -4658,7 +4709,7 @@ async function init() {
           e.preventDefault();
           navigateTo(`/watch/${watchState.ep.nextEpisode.id}`);
           showToast(`Playing Next: Episode ${watchState.ep.nextEpisode.number}`, 'info');
-        } else if ((k === 'p' || e.key === 'MediaTrackPrevious') && watchState.ep.prevEpisode) {
+        } else if ((k === 'p' || k === 'b' || e.key === 'MediaTrackPrevious') && watchState.ep.prevEpisode) {
           e.preventDefault();
           navigateTo(`/watch/${watchState.ep.prevEpisode.id}`);
           showToast(`Playing Previous: Episode ${watchState.ep.prevEpisode.number}`, 'info');
@@ -4671,7 +4722,18 @@ async function init() {
         } else if (k === 'r') {
           e.preventDefault();
           reloadWatchPlayer();
-          showToast('Player reloaded', 'info');
+        } else if (k === 'l') {
+          e.preventDefault();
+          toggleWatchFocusLight();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          seekWatchPlayerRelative(5);
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          seekWatchPlayerRelative(-5);
+        } else if (e.key === ' ' || k === 'k') {
+          e.preventDefault();
+          toggleWatchPlayPause();
         }
       }
     }

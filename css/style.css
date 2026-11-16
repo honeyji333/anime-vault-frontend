@@ -6932,3 +6932,35 @@ a[href*="chaturbate"] {
 .back-to-top-btn i {
   font-size: 0.72rem;
 }
+
+/* ===== AnimeSuge "Turn Off Light" (Cinema Dimmer) ===== */
+.cinema-dimmer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 799;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cinema-dimmer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.watch-player.focused-cinema {
+  position: relative;
+  z-index: 850 !important;
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.98), 0 0 40px rgba(16, 185, 129, 0.35) !important;
+  border-radius: var(--radius-lg);
+}
+
+.player-ctl-btn.light-active {
+  background: #facc15 !important;
+  color: #000 !important;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.45) !important;
+  border-color: #facc15 !important;
+}
