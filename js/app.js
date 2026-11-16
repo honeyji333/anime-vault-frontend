@@ -2269,6 +2269,17 @@ async function renderWatchPage(episodeId) {
               </div>
             </div>
 
+            <!-- Next Episode Predicted Alert Banner (AnimeSuge Style) -->
+            ${(ep.status === 'Airing' || ep.anime_status === 'Airing' || ep.anime_slug === 'one-piece') ? `
+              <div class="watch-prediction-bar" id="watch-prediction-bar">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <i class="fas fa-bullhorn"></i>
+                  <span>The next episode is predicted to arrive on <strong id="pred-target-date">calculating...</strong> (<span class="pred-countdown" id="pred-target-countdown">calculating...</span>)</span>
+                </div>
+                <button class="pred-close-btn" onclick="document.getElementById('watch-prediction-bar')?.remove()" aria-label="Close prediction"><i class="fas fa-xmark"></i></button>
+              </div>
+            ` : ''}
+
             <!-- Server & Audio Selectors -->
             <div class="stream-tip-banner">
               <i class="fas fa-server"></i>
@@ -2398,6 +2409,7 @@ async function renderWatchPage(episodeId) {
     renderWatchTiles();
     renderWatchAudioSelector();
     attachPlayerClickGate();
+    startPredictionCountdown(ep);
 
     // Active watch progress tracking (AniSurge-style resume system)
     if (window._watchProgressInterval) {
@@ -4844,3 +4856,178 @@ window.switchActiveToonServer = function(url, btn) {
   document.querySelectorAll('.toon-server-pill').forEach(b => b.classList.remove('active'));
   btn?.classList.add('active');
 };
+
+// ===== AnimeSuge Airing Schedule Drawer Controller =====
+let scheduleClockInterval = null;
+let scheduleDataCache = null;
+
+function formatScheduleTime(epochSec) {
+  const d = new Date(epochSec * 1000);
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function getLocalTimezoneString() {
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const hours = Math.floor(Math.abs(offsetMin) / 60);
+  const mins = Math.abs(offsetMin) % 60;
+  return `GMT${sign}${hours}${mins > 0 ? '.' + Math.round((mins / 60) * 10) : ''}`;
+}
+
+function updateScheduleClock() {
+  const timeEl = document.getElementById('schedule-clock-time');
+  const tzEl = document.getElementById('schedule-clock-tz');
+  if (!timeEl) return;
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  timeEl.textContent = `${h}:${m}:${s}`;
+  if (tzEl) tzEl.textContent = getLocalTimezoneString();
+}
+
+async function fetchAndRenderSchedule() {
+  const contentEl = document.getElementById('schedule-drawer-content');
+  if (!contentEl) return;
+
+  if (!scheduleDataCache) {
+    try {
+      const res = await api('/anime/schedule');
+      if (res && res.success && Array.isArray(res.data)) {
+        scheduleDataCache = res.data;
+      }
+    } catch (e) {
+      console.warn('Failed to load schedule from API:', e);
+    }
+  }
+
+  const items = scheduleDataCache || [];
+  if (items.length === 0) {
+    contentEl.innerHTML = `
+      <div style="padding: 40px 10px; text-align: center; color: #64748b;">
+        <i class="fa-regular fa-calendar-xmark" style="font-size: 2rem; margin-bottom: 12px; display: block;"></i>
+        <p>No airing schedule data available at the moment.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Group items by day
+  const daysMap = new Map();
+  const todayDateStr = new Date().toDateString();
+
+  const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+  items.forEach(item => {
+    const d = new Date(item.airingAt * 1000);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!daysMap.has(key)) {
+      const dayNum = d.getDate();
+      const monthStr = monthNames[d.getMonth()];
+      const dayName = dayNames[d.getDay()];
+      const isToday = d.toDateString() === todayDateStr;
+      daysMap.set(key, {
+        dateStr: `${dayNum} ${monthStr}`,
+        dayName,
+        isToday,
+        items: []
+      });
+    }
+    daysMap.get(key).items.push(item);
+  });
+
+  let html = '';
+  daysMap.forEach((group) => {
+    html += `
+      <div class="schedule-day-group ${group.isToday ? 'is-today' : ''}">
+        <div class="schedule-day-header">
+          <div class="schedule-day-date">${group.dateStr}</div>
+          <div class="schedule-day-name">${group.dayName}</div>
+        </div>
+        <div class="schedule-day-items">
+          ${group.items.map(item => {
+            const timeStr = formatScheduleTime(item.airingAt);
+            const targetUrl = item.slug ? `/anime/${item.slug}` : `/browse?search=${encodeURIComponent(item.title)}`;
+            return `
+              <div class="schedule-item-row" onclick="navigateTo('${targetUrl}'); toggleScheduleDrawer(false);" title="${escapeHtml(item.title)} Ep - ${item.episode}">
+                <span class="schedule-item-time">${timeStr}</span>
+                <span class="schedule-item-title">${escapeHtml(item.title)} Ep - ${item.episode}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  contentEl.innerHTML = html;
+}
+
+window.toggleScheduleDrawer = function(forceOpen) {
+  const drawer = document.getElementById('schedule-drawer');
+  const backdrop = document.getElementById('schedule-backdrop');
+  if (!drawer || !backdrop) return;
+
+  const isOpen = drawer.classList.contains('open');
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
+
+  if (shouldOpen) {
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+    updateScheduleClock();
+    if (!scheduleClockInterval) {
+      scheduleClockInterval = setInterval(updateScheduleClock, 1000);
+    }
+    fetchAndRenderSchedule();
+  } else {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    if (scheduleClockInterval) {
+      clearInterval(scheduleClockInterval);
+      scheduleClockInterval = null;
+    }
+  }
+};
+
+// Next Episode Countdown Timer Controller (Watch Page)
+function startPredictionCountdown(ep) {
+  const dateEl = document.getElementById('pred-target-date');
+  const countEl = document.getElementById('pred-target-countdown');
+  if (!dateEl || !countEl || !ep) return;
+
+  // Predict next drop: default next weekly release cycle (e.g. Next Sunday 09:30 AM GMT for One Piece)
+  const now = new Date();
+  const targetDate = new Date();
+  
+  if (ep.anime_slug === 'one-piece') {
+    // Airs every Sunday morning (JST / GMT)
+    targetDate.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
+    targetDate.setHours(9, 30, 0, 0);
+  } else {
+    // Weekly +7 days from last known episode release or upcoming weekend
+    targetDate.setDate(now.getDate() + 6);
+    targetDate.setHours(18, 0, 0, 0);
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateStr = `${targetDate.getFullYear()}/${pad(targetDate.getMonth() + 1)}/${pad(targetDate.getDate())} 09:30 AM GMT`;
+  dateEl.textContent = dateStr;
+
+  function update() {
+    const diff = Math.max(0, Math.floor((targetDate.getTime() - Date.now()) / 1000));
+    const d = Math.floor(diff / 86400);
+    const h = Math.floor((diff % 86400) / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    const s = diff % 60;
+    if (countEl) {
+      countEl.textContent = `${d} days, ${h} hours, ${m} minutes, ${s} seconds`;
+    }
+  }
+  update();
+
+  if (window._predCountdownInterval) clearInterval(window._predCountdownInterval);
+  window._predCountdownInterval = setInterval(update, 1000);
+}

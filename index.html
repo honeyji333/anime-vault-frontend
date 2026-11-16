@@ -430,6 +430,30 @@
     </form>
   </aside>
 
+  <!-- Floating Schedule Tab (AnimeSuge Style) -->
+  <button id="schedule-trigger-tab" class="schedule-floating-tab" aria-label="Open Airing Schedule" onclick="toggleScheduleDrawer()">
+    <span class="schedule-tab-icon"><i class="fa-regular fa-calendar-days"></i></span>
+    <span class="schedule-tab-text">SCHEDULE</span>
+  </button>
+
+  <!-- Slide-out Schedule Drawer (AnimeSuge Style) -->
+  <aside id="schedule-drawer" class="schedule-drawer" aria-label="Airing Schedule">
+    <div class="schedule-drawer-header">
+      <div class="schedule-clock-wrap">
+        <div class="schedule-clock"><span id="schedule-clock-time">00:00:00</span> <span class="schedule-tz" id="schedule-clock-tz">GMT+5.5</span></div>
+        <div class="schedule-clock-sub">Release time is estimated</div>
+      </div>
+      <button class="schedule-close-btn" onclick="toggleScheduleDrawer(false)" aria-label="Close schedule"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="schedule-drawer-body" id="schedule-drawer-content">
+      <div class="schedule-drawer-loading">
+        <div class="loader-ring"></div>
+        <span>Loading Airing Schedule...</span>
+      </div>
+    </div>
+  </aside>
+  <div id="schedule-backdrop" class="schedule-backdrop" onclick="toggleScheduleDrawer(false)"></div>
+
   <script src="/js/app.js?v=7.4.0"></script>
   <script src="/js/seo.js?v=5.3.0"></script>
 </body>
