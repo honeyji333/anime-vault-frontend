@@ -375,18 +375,30 @@ const ANIME_SERVERS = [
     badge: 'FAST HD',
     provider: 'AnimeEmbed Ultra HD',
     audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, malId, episode, audio, animeTitle }) => {
+    build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
       const lang = audio === 'hindi' ? '&lang=hi' : '';
       if (anilistId) {
-        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1${animeTitle ? `&title=${encodeURIComponent(animeTitle)}` : ''}`;
+        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
       }
       return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
-    id: 'justplay',
+    id: 'animeembed-mal',
     name: 'Server 2',
+    badge: 'STABLE HD',
+    provider: 'AnimeEmbed Pro (MAL Engine)',
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ anilistId, malId, episode, audio }) => {
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      const lang = audio === 'hindi' ? '&lang=hi' : '';
+      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
+    }
+  },
+  {
+    id: 'justplay',
+    name: 'Server 3',
     badge: 'CINEMATIC HD',
     provider: 'JustPlay Stream',
     audio: ['sub', 'dub', 'hindi'],
@@ -398,7 +410,7 @@ const ANIME_SERVERS = [
   },
   {
     id: 'justplay-pahe',
-    name: 'Server 3',
+    name: 'Server 4',
     badge: 'FAST STREAM',
     provider: 'JustPlay Pahe',
     audio: ['sub', 'dub'],
@@ -410,7 +422,7 @@ const ANIME_SERVERS = [
   },
   {
     id: 'vidcore-anime',
-    name: 'Server 4',
+    name: 'Server 5',
     badge: 'UHD PRO',
     provider: 'VidCore HD',
     audio: ['sub', 'dub'],
@@ -418,26 +430,7 @@ const ANIME_SERVERS = [
       if (isMovie && tmdbId) {
         return `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`;
       }
-      if (tmdbId) {
-        return `https://player.autoembed.me/embed/tv/${tmdbId}/${season || 1}/${episode}/`;
-      }
       return `https://animeembed.com/embed/ani/${anilistId || 21}/${episode}?accent=8b5cf6&autoSkip=1`;
-    }
-  },
-  {
-    id: '2embed-anime',
-    name: 'Server 5',
-    badge: 'MULTI HD',
-    provider: '2Embed Ultra HD',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, anilistId, episode, isMovie, season }) => {
-      if (isMovie && tmdbId) {
-        return `https://www.2embed.cc/embed/${tmdbId}`;
-      }
-      if (tmdbId) {
-        return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode}`;
-      }
-      return `https://justplay.boo/embed/?ani=${anilistId || 21}&ep=${episode}&accent=8b5cf6`;
     }
   }
 ];
@@ -2045,11 +2038,6 @@ function updateWatchIframe() {
 
   frame.onload = () => {
     if (loader) loader.classList.add('hidden');
-    if (savedProg > 5) {
-      dispatchPlayerSeek(savedProg);
-      setTimeout(() => dispatchPlayerSeek(savedProg), 1200);
-      setTimeout(() => dispatchPlayerSeek(savedProg), 2500);
-    }
   };
   setTimeout(() => {
     if (loader) loader.classList.add('hidden');
@@ -2269,10 +2257,16 @@ window.setWatchAudio = function(audioMode) {
 
 window.reloadWatchPlayer = function() {
   const frame = document.getElementById('watch-iframe');
-  if (frame) {
-    const cur = frame.src;
+  if (frame && watchState.ep) {
+    const prog = Number(localStorage.getItem(`anime_prog_${watchState.ep.id}`)) || 0;
+    const freshUrl = buildStreamUrl(watchState.ep, watchState.selectedServer, watchState.audio, prog);
     frame.src = 'about:blank';
-    setTimeout(() => { frame.src = cur; }, 100);
+    const loader = document.getElementById('player-loader');
+    if (loader) loader.classList.remove('hidden');
+    setTimeout(() => {
+      frame.src = freshUrl;
+      showToast('🔄 Player stream reloaded', 'info');
+    }, 150);
   }
 };
 
@@ -2753,13 +2747,6 @@ async function renderWatchPage(episodeId) {
         const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
         if (!d) return;
 
-        // Auto-respond to AnimeEmbed ready / play events to ensure seek happens immediately!
-        if (d.channel === 'animeembed' && (d.event === 'ready' || d.event === 'play' || d.event === 'buffering')) {
-          if (savedProg > 5) {
-            dispatchPlayerSeek(savedProg);
-          }
-        }
-
         // Catch playback progress from any provider (AnimeEmbed, VidLink, JWPlayer, HTML5, YouTube)
         const t = d.currentTime ?? d.time ?? d.seconds ?? d.info?.currentTime ??
                   d.data?.currentTime ?? d.data?.time ?? d.data?.seconds;
@@ -2862,11 +2849,6 @@ async function renderWatchPage(episodeId) {
       frame.removeAttribute('sandbox');
       frame.onload = () => {
         if (loader) loader.classList.add('hidden');
-        if (savedProg > 5) {
-          dispatchPlayerSeek(savedProg);
-          setTimeout(() => dispatchPlayerSeek(savedProg), 1200);
-          setTimeout(() => dispatchPlayerSeek(savedProg), 2500);
-        }
       };
       // Hide loader after maximum 4s in case onload was fired earlier
       setTimeout(() => { if (loader) loader.classList.add('hidden'); }, 4000);
