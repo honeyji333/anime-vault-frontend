@@ -60,10 +60,10 @@
         var a = e.target && e.target.closest ? e.target.closest('a') : null;
         if (a && a.href) {
           var h = a.href.toLowerCase();
-          var isSelf = h.indexOf(window.location.hostname) !== -1 || h.indexOf('youtube.com') !== -1;
+          var isSelf = h.indexOf(window.location.hostname) !== -1 || h.indexOf('youtube.com') !== -1 || h.indexOf('dark-summoner') !== -1 || h.indexOf('/anime/') !== -1 || h.startsWith('/') || h.indexOf('/browse') !== -1;
           if (!isSelf && (
             h.includes('porn') || h.includes('sex') || h.includes('xhamster') || h.includes('xnxx') ||
-            h.includes('adult') || h.includes('cam') || h.includes('dating') || h.includes('casino') ||
+            h.includes('adult') || h.includes('casino') ||
             h.includes('bet') || h.includes('xxx') || h.includes('strip') || h.includes('hookup') ||
             h.includes('livejasmin') || h.includes('chaturbate') || h.includes('bongacams')
           )) {
@@ -104,6 +104,101 @@
         <a href="/anime" class="nav-link" data-page="anime" onclick="navigateTo('/anime'); return false;">
           Anime
         </a>
+
+        <!-- GENRES DROPDOWN (AnimeSuge 3-Column Mega Dropdown) -->
+        <div class="nav-dropdown" id="nav-dropdown-genres">
+          <a href="/genres" class="nav-link nav-dropdown-trigger" data-page="genres" onclick="if(window.innerWidth<=768){toggleNavDropdown(this, event); return false;} navigateTo('/genres'); return false;">
+            Genres <i class="fas fa-chevron-down nav-chevron"></i>
+          </a>
+          <div class="nav-dropdown-menu nav-mega-dropdown">
+            <div class="dropdown-heading">Genres</div>
+            <div class="mega-genres-grid">
+              <div class="genre-column">
+                <a href="/browse?genre=action" class="genre-item-link" onclick="navigateTo('/browse?genre=action'); closeNavDropdowns(); return false;">Action</a>
+                <a href="/browse?genre=animation" class="genre-item-link" onclick="navigateTo('/browse?genre=animation'); closeNavDropdowns(); return false;">Animation</a>
+                <a href="/browse?genre=cars" class="genre-item-link" onclick="navigateTo('/browse?genre=cars'); closeNavDropdowns(); return false;">Cars</a>
+                <a href="/browse?genre=demons" class="genre-item-link" onclick="navigateTo('/browse?genre=demons'); closeNavDropdowns(); return false;">Demons</a>
+                <a href="/browse?genre=erotica" class="genre-item-link" onclick="navigateTo('/browse?genre=erotica'); closeNavDropdowns(); return false;">Erotica</a>
+                <a href="/browse?genre=girls-love" class="genre-item-link" onclick="navigateTo('/browse?genre=girls-love'); closeNavDropdowns(); return false;">Girls Love</a>
+                <a href="/browse?genre=hentai" class="genre-item-link" onclick="navigateTo('/browse?genre=hentai'); closeNavDropdowns(); return false;">Hentai</a>
+                <a href="/browse?genre=isekai" class="genre-item-link" onclick="navigateTo('/browse?genre=isekai'); closeNavDropdowns(); return false;">Isekai</a>
+                <a href="/browse?genre=magic" class="genre-item-link" onclick="navigateTo('/browse?genre=magic'); closeNavDropdowns(); return false;">Magic</a>
+                <a href="/browse?genre=mecha" class="genre-item-link" onclick="navigateTo('/browse?genre=mecha'); closeNavDropdowns(); return false;">Mecha</a>
+                <a href="/browse?genre=mystery" class="genre-item-link" onclick="navigateTo('/browse?genre=mystery'); closeNavDropdowns(); return false;">Mystery</a>
+                <a href="/browse?genre=psychological" class="genre-item-link" onclick="navigateTo('/browse?genre=psychological'); closeNavDropdowns(); return false;">Psychological</a>
+                <a href="/browse?genre=school" class="genre-item-link" onclick="navigateTo('/browse?genre=school'); closeNavDropdowns(); return false;">School</a>
+                <a href="/browse?genre=seinen" class="genre-item-link" onclick="navigateTo('/browse?genre=seinen'); closeNavDropdowns(); return false;">Seinen</a>
+                <a href="/browse?genre=shounen" class="genre-item-link" onclick="navigateTo('/browse?genre=shounen'); closeNavDropdowns(); return false;">Shounen</a>
+                <a href="/browse?genre=space" class="genre-item-link" onclick="navigateTo('/browse?genre=space'); closeNavDropdowns(); return false;">Space</a>
+                <a href="/browse?genre=supernatural" class="genre-item-link" onclick="navigateTo('/browse?genre=supernatural'); closeNavDropdowns(); return false;">Supernatural</a>
+                <a href="/browse?genre=unknown" class="genre-item-link" onclick="navigateTo('/browse?genre=unknown'); closeNavDropdowns(); return false;">unknown</a>
+              </div>
+              <div class="genre-column">
+                <a href="/browse?genre=action-and-adventure" class="genre-item-link" title="Action & Adventure" onclick="navigateTo('/browse?genre=action-and-adventure'); closeNavDropdowns(); return false;">Action & Adv...</a>
+                <a href="/browse?genre=award-winning" class="genre-item-link" title="Award Winning" onclick="navigateTo('/browse?genre=award-winning'); closeNavDropdowns(); return false;">Award Winnin...</a>
+                <a href="/browse?genre=comedy" class="genre-item-link" onclick="navigateTo('/browse?genre=comedy'); closeNavDropdowns(); return false;">Comedy</a>
+                <a href="/browse?genre=drama" class="genre-item-link" onclick="navigateTo('/browse?genre=drama'); closeNavDropdowns(); return false;">Drama</a>
+                <a href="/browse?genre=fantasy" class="genre-item-link" onclick="navigateTo('/browse?genre=fantasy'); closeNavDropdowns(); return false;">Fantasy</a>
+                <a href="/browse?genre=gourmet" class="genre-item-link" onclick="navigateTo('/browse?genre=gourmet'); closeNavDropdowns(); return false;">Gourmet</a>
+                <a href="/browse?genre=historical" class="genre-item-link" onclick="navigateTo('/browse?genre=historical'); closeNavDropdowns(); return false;">Historical</a>
+                <a href="/browse?genre=josei" class="genre-item-link" onclick="navigateTo('/browse?genre=josei'); closeNavDropdowns(); return false;">Josei</a>
+                <a href="/browse?genre=mahou-shoujo" class="genre-item-link" onclick="navigateTo('/browse?genre=mahou-shoujo'); closeNavDropdowns(); return false;">Mahou Shoujo</a>
+                <a href="/browse?genre=military" class="genre-item-link" onclick="navigateTo('/browse?genre=military'); closeNavDropdowns(); return false;">Military</a>
+                <a href="/browse?genre=parody" class="genre-item-link" onclick="navigateTo('/browse?genre=parody'); closeNavDropdowns(); return false;">Parody</a>
+                <a href="/browse?genre=romance" class="genre-item-link" onclick="navigateTo('/browse?genre=romance'); closeNavDropdowns(); return false;">Romance</a>
+                <a href="/browse?genre=sci-fi" class="genre-item-link" onclick="navigateTo('/browse?genre=sci-fi'); closeNavDropdowns(); return false;">Sci-Fi</a>
+                <a href="/browse?genre=shoujo" class="genre-item-link" onclick="navigateTo('/browse?genre=shoujo'); closeNavDropdowns(); return false;">Shoujo</a>
+                <a href="/browse?genre=shounen-ai" class="genre-item-link" onclick="navigateTo('/browse?genre=shounen-ai'); closeNavDropdowns(); return false;">Shounen Ai</a>
+                <a href="/browse?genre=sports" class="genre-item-link" onclick="navigateTo('/browse?genre=sports'); closeNavDropdowns(); return false;">Sports</a>
+                <a href="/browse?genre=suspense" class="genre-item-link" onclick="navigateTo('/browse?genre=suspense'); closeNavDropdowns(); return false;">Suspense</a>
+                <a href="/browse?genre=vampire" class="genre-item-link" onclick="navigateTo('/browse?genre=vampire'); closeNavDropdowns(); return false;">Vampire</a>
+              </div>
+              <div class="genre-column">
+                <a href="/browse?genre=adventure" class="genre-item-link" onclick="navigateTo('/browse?genre=adventure'); closeNavDropdowns(); return false;">Adventure</a>
+                <a href="/browse?genre=boys-love" class="genre-item-link" onclick="navigateTo('/browse?genre=boys-love'); closeNavDropdowns(); return false;">Boys Love</a>
+                <a href="/browse?genre=dementia" class="genre-item-link" onclick="navigateTo('/browse?genre=dementia'); closeNavDropdowns(); return false;">Dementia</a>
+                <a href="/browse?genre=ecchi" class="genre-item-link" onclick="navigateTo('/browse?genre=ecchi'); closeNavDropdowns(); return false;">Ecchi</a>
+                <a href="/browse?genre=game" class="genre-item-link" onclick="navigateTo('/browse?genre=game'); closeNavDropdowns(); return false;">Game</a>
+                <a href="/browse?genre=harem" class="genre-item-link" onclick="navigateTo('/browse?genre=harem'); closeNavDropdowns(); return false;">Harem</a>
+                <a href="/browse?genre=horror" class="genre-item-link" onclick="navigateTo('/browse?genre=horror'); closeNavDropdowns(); return false;">Horror</a>
+                <a href="/browse?genre=kids" class="genre-item-link" onclick="navigateTo('/browse?genre=kids'); closeNavDropdowns(); return false;">Kids</a>
+                <a href="/browse?genre=martial-arts" class="genre-item-link" onclick="navigateTo('/browse?genre=martial-arts'); closeNavDropdowns(); return false;">Martial Arts</a>
+                <a href="/browse?genre=music" class="genre-item-link" onclick="navigateTo('/browse?genre=music'); closeNavDropdowns(); return false;">Music</a>
+                <a href="/browse?genre=police" class="genre-item-link" onclick="navigateTo('/browse?genre=police'); closeNavDropdowns(); return false;">Police</a>
+                <a href="/browse?genre=samurai" class="genre-item-link" onclick="navigateTo('/browse?genre=samurai'); closeNavDropdowns(); return false;">Samurai</a>
+                <a href="/browse?genre=sci-fi-and-fantasy" class="genre-item-link" title="Sci-Fi & Fantasy" onclick="navigateTo('/browse?genre=sci-fi-and-fantasy'); closeNavDropdowns(); return false;">Sci-Fi & Fanta...</a>
+                <a href="/browse?genre=shoujo-ai" class="genre-item-link" onclick="navigateTo('/browse?genre=shoujo-ai'); closeNavDropdowns(); return false;">Shoujo Ai</a>
+                <a href="/browse?genre=slice-of-life" class="genre-item-link" onclick="navigateTo('/browse?genre=slice-of-life'); closeNavDropdowns(); return false;">Slice of Life</a>
+                <a href="/browse?genre=super-power" class="genre-item-link" onclick="navigateTo('/browse?genre=super-power'); closeNavDropdowns(); return false;">Super Power</a>
+                <a href="/browse?genre=thriller" class="genre-item-link" onclick="navigateTo('/browse?genre=thriller'); closeNavDropdowns(); return false;">Thriller</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TYPES DROPDOWN (AnimeSuge Types Menu) -->
+        <div class="nav-dropdown" id="nav-dropdown-types">
+          <a href="/browse" class="nav-link nav-dropdown-trigger" data-page="types" onclick="if(window.innerWidth<=768){toggleNavDropdown(this, event); return false;} navigateTo('/browse'); return false;">
+            Types <i class="fas fa-chevron-down nav-chevron"></i>
+          </a>
+          <div class="nav-dropdown-menu nav-types-dropdown">
+            <div class="dropdown-heading">Types</div>
+            <div class="types-list">
+              <a href="/browse?type=CM" class="type-item-link" onclick="navigateTo('/browse?type=CM'); closeNavDropdowns(); return false;">CM</a>
+              <a href="/browse?type=Movie" class="type-item-link" onclick="navigateTo('/browse?type=Movie'); closeNavDropdowns(); return false;">MOVIE</a>
+              <a href="/browse?type=Music" class="type-item-link" onclick="navigateTo('/browse?type=Music'); closeNavDropdowns(); return false;">MUSIC</a>
+              <a href="/browse?type=ONA" class="type-item-link" onclick="navigateTo('/browse?type=ONA'); closeNavDropdowns(); return false;">ONA</a>
+              <a href="/browse?type=OVA" class="type-item-link" onclick="navigateTo('/browse?type=OVA'); closeNavDropdowns(); return false;">OVA</a>
+              <a href="/browse?type=Scripted" class="type-item-link" onclick="navigateTo('/browse?type=Scripted'); closeNavDropdowns(); return false;">SCRIPTED</a>
+              <a href="/browse?type=Special" class="type-item-link" onclick="navigateTo('/browse?type=Special'); closeNavDropdowns(); return false;">SPECIAL</a>
+              <a href="/browse?type=TV" class="type-item-link" onclick="navigateTo('/browse?type=TV'); closeNavDropdowns(); return false;">TV</a>
+              <a href="/browse?type=tv_short" class="type-item-link" onclick="navigateTo('/browse?type=tv_short'); closeNavDropdowns(); return false;">TV SHORT</a>
+              <a href="/browse?type=tv_special" class="type-item-link" onclick="navigateTo('/browse?type=tv_special'); closeNavDropdowns(); return false;">TV SPECIAL</a>
+              <a href="/browse?type=Unknown" class="type-item-link" onclick="navigateTo('/browse?type=Unknown'); closeNavDropdowns(); return false;">UNKNOWN</a>
+            </div>
+          </div>
+        </div>
+
         <a href="/browse?type=Movie" class="nav-link" data-page="movies" onclick="navigateTo('/browse?type=Movie'); return false;">
           Movies
         </a>

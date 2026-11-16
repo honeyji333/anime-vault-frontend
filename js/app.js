@@ -46,7 +46,32 @@ function showToast(message, type = 'info') {
 }
 
 // ===== Router =====
+window.closeNavDropdowns = function() {
+  document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('open'));
+};
+
+window.toggleNavDropdown = function(btn, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const parent = btn.closest('.nav-dropdown');
+  if (!parent) return;
+  const wasOpen = parent.classList.contains('open');
+  closeNavDropdowns();
+  if (!wasOpen) {
+    parent.classList.add('open');
+  }
+};
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.nav-dropdown')) {
+    closeNavDropdowns();
+  }
+});
+
 function navigateTo(path) {
+  closeNavDropdowns();
   if (typeof window._saveWatchProgressBeforeNav === 'function') {
     try { window._saveWatchProgressBeforeNav(); } catch (e) {}
   }
@@ -285,21 +310,25 @@ function handleRoute() {
       document.querySelector('.nav-link[data-page="toons"]')?.classList.add('active');
       renderToonWatchPage(slug);
     } else if (path === '/browse') {
-    if (params.get('type') === 'Movie') {
-      document.querySelector('.nav-link[data-page="movies"]')?.classList.add('active');
-      document.querySelector('.mobile-bar-item[data-page="movies"]')?.classList.add('active');
-    } else if (params.get('type') === 'ONA') {
-      document.querySelector('.nav-link[data-page="series"]')?.classList.add('active');
-      document.querySelector('.mobile-bar-item[data-page="series"]')?.classList.add('active');
-    } else if (params.get('dub') === 'hindi') {
-      document.querySelector('.nav-link[data-page="hindi-dub"]')?.classList.add('active');
-      document.querySelector('.mobile-bar-item[data-page="hindi-dub"]')?.classList.add('active');
-    } else {
-      document.querySelector('.nav-link[data-page="browse"]')?.classList.add('active');
-    }
-    renderBrowsePage(params);
-  } else if (path === '/genres') {
-    renderGenresPage();
+      const typeParam = (params.get('type') || '').toLowerCase();
+      const genreParam = params.get('genre');
+      if (typeParam === 'movie' || typeParam === 'animemovie') {
+        document.querySelector('.nav-link[data-page="movies"]')?.classList.add('active');
+        document.querySelector('.mobile-bar-item[data-page="movies"]')?.classList.add('active');
+      } else if (params.get('dub') === 'hindi') {
+        document.querySelector('.nav-link[data-page="hindi-dub"]')?.classList.add('active');
+        document.querySelector('.mobile-bar-item[data-page="hindi-dub"]')?.classList.add('active');
+      } else if (genreParam) {
+        document.querySelector('.nav-link[data-page="genres"]')?.classList.add('active');
+      } else if (typeParam) {
+        document.querySelector('.nav-link[data-page="types"]')?.classList.add('active');
+      } else {
+        document.querySelector('.nav-link[data-page="browse"]')?.classList.add('active');
+      }
+      renderBrowsePage(params);
+    } else if (path === '/genres') {
+      document.querySelector('.nav-link[data-page="genres"]')?.classList.add('active');
+      renderGenresPage();
   } else if (path.startsWith('/anime/')) {
     const slug = path.split('/anime/')[1];
     renderAnimeDetail(slug);
@@ -1060,6 +1089,15 @@ async function renderBrowsePage(params) {
     pageTitle = 'Hindi Dubbed Anime & Shows 🇮🇳';
     pageDesc = 'Watch top anime in Hindi Dub (Naruto, Dragon Ball, Demon Slayer, Jujutsu Kaisen, Fairy Tail & more)';
     pageIcon = 'fa-flag';
+  } else if (genre) {
+    const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    pageTitle = `${formattedGenre} Anime ⚡`;
+    pageDesc = `Explore our collection of ${formattedGenre} anime titles with instant multi-server streaming`;
+    pageIcon = 'fa-tags';
+  } else if (type && !isAnimeMovie && !isLiveMovie && !isWebSeries) {
+    pageTitle = `${type.toUpperCase()} Anime 🎬`;
+    pageDesc = `Browse all ${type.toUpperCase()} anime and series with HD streaming`;
+    pageIcon = 'fa-layer-group';
   } else if (isAnimeMovie) {
     pageTitle = 'Anime Movies 🎬';
     pageDesc = 'Explore iconic anime films (Your Name, Spirited Away, Suzume, Mugen Train, Akira & more) in full HD';
@@ -1092,6 +1130,7 @@ async function renderBrowsePage(params) {
           <label>Genre</label>
           <select id="filter-genre" onchange="applyFilters()">
             <option value="">All Genres</option>
+            ${genre ? `<option value="${genre}" selected>${genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</option>` : ''}
           </select>
         </div>
         <div class="filter-group">
@@ -1100,10 +1139,16 @@ async function renderBrowsePage(params) {
             <option value="">All Types</option>
             <option value="AnimeMovie" ${isAnimeMovie ? 'selected' : ''}>🎬 Anime Movies</option>
             <option value="Movie" ${isLiveMovie ? 'selected' : ''}>🍿 Movies (Bollywood & Hollywood)</option>
-            <option value="ONA" ${isWebSeries ? 'selected' : ''}>📺 Web Series</option>
-            <option value="TV" ${type === 'TV' ? 'selected' : ''}>📺 Anime TV Series</option>
-            <option value="OVA" ${type === 'OVA' ? 'selected' : ''}>OVA</option>
-            <option value="Special" ${type === 'Special' ? 'selected' : ''}>Special</option>
+            <option value="ONA" ${type.toUpperCase() === 'ONA' || isWebSeries ? 'selected' : ''}>📺 ONA / Web Series</option>
+            <option value="TV" ${type.toUpperCase() === 'TV' ? 'selected' : ''}>📺 Anime TV Series</option>
+            <option value="OVA" ${type.toUpperCase() === 'OVA' ? 'selected' : ''}>OVA</option>
+            <option value="Special" ${type.toUpperCase() === 'SPECIAL' ? 'selected' : ''}>Special</option>
+            <option value="tv_short" ${type.toLowerCase() === 'tv_short' ? 'selected' : ''}>TV Short</option>
+            <option value="tv_special" ${type.toLowerCase() === 'tv_special' ? 'selected' : ''}>TV Special</option>
+            <option value="Music" ${type.toUpperCase() === 'MUSIC' ? 'selected' : ''}>Music</option>
+            <option value="CM" ${type.toUpperCase() === 'CM' ? 'selected' : ''}>CM</option>
+            <option value="Scripted" ${type.toLowerCase() === 'scripted' ? 'selected' : ''}>Scripted</option>
+            <option value="Unknown" ${type.toLowerCase() === 'unknown' ? 'selected' : ''}>Unknown</option>
           </select>
         </div>
         <div class="filter-group">
@@ -1134,13 +1179,18 @@ async function renderBrowsePage(params) {
   try {
     const genresRes = await api('/genres');
     const genreSelect = document.getElementById('filter-genre');
-    genresRes.data.forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g.slug;
-      opt.textContent = `${g.name} (${g.anime_count})`;
-      if (g.slug === genre) opt.selected = true;
-      genreSelect.appendChild(opt);
-    });
+    if (genreSelect && genresRes?.data) {
+      genreSelect.innerHTML = '<option value="">All Genres</option>';
+      genresRes.data.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.slug;
+        opt.textContent = `${g.name} (${g.anime_count})`;
+        if (genre && (g.slug.toLowerCase() === genre.toLowerCase() || g.name.toLowerCase() === genre.toLowerCase())) {
+          opt.selected = true;
+        }
+        genreSelect.appendChild(opt);
+      });
+    }
   } catch (e) {}
 
   // Load anime
@@ -1148,11 +1198,12 @@ async function renderBrowsePage(params) {
 }
 
 async function loadBrowseResults(page = 1) {
-  const dub = document.getElementById('filter-dub')?.value || '';
-  const genre = document.getElementById('filter-genre')?.value || '';
-  const type = document.getElementById('filter-type')?.value || '';
-  const status = document.getElementById('filter-status')?.value || '';
-  const sort = document.getElementById('filter-sort')?.value || 'rating';
+  const urlParams = new URLSearchParams(window.location.search);
+  const dub = document.getElementById('filter-dub')?.value ?? (urlParams.get('dub') || '');
+  const genre = document.getElementById('filter-genre')?.value || urlParams.get('genre') || '';
+  const type = document.getElementById('filter-type')?.value || urlParams.get('type') || '';
+  const status = document.getElementById('filter-status')?.value || urlParams.get('status') || '';
+  const sort = document.getElementById('filter-sort')?.value || urlParams.get('sort') || 'rating';
 
   const queryParts = [];
   if (dub) queryParts.push(`dub=${dub}`);
@@ -1573,8 +1624,9 @@ function formatProgressTime(sec) {
 function buildStreamUrl(ep, serverId, audio, startTime = 0) {
   let url = '';
   const isKapilShow = ep.anime_slug === 'the-great-indian-kapil-show';
-  const isLiveMovie = ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id && ep.tmdb_id);
-  const isWebSeries = ep.anime_type === 'ONA' || ep.category === 'series' || isKapilShow;
+  const isAnime = ep.category === 'anime' || Boolean(ep.anilist_id);
+  const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id && ep.tmdb_id)) && !isAnime;
+  const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
 
   if (serverId === 'official' && ep.youtube_video_id && !isWebSeries && !isLiveMovie) {
     url = `https://www.youtube-nocookie.com/embed/${ep.youtube_video_id}?autoplay=1&rel=0&enablejsapi=1`;
@@ -2135,8 +2187,9 @@ async function renderWatchPage(episodeId) {
 
     // Build servers list
     const isKapilShow = ep.anime_slug === 'the-great-indian-kapil-show';
-    const isLiveMovie = ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id);
-    const isWebSeries = ep.anime_type === 'ONA' || ep.category === 'series' || isKapilShow;
+    const isAnime = ep.category === 'anime' || Boolean(ep.anilist_id);
+    const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id)) && !isAnime;
+    const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
     const officialVideoId = (isWebSeriesOrLive || isKapilShow) ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
     const serversList = isWebSeriesOrLive ? [...WEBSERIES_SERVERS] : [...ANIME_SERVERS];
