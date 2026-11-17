@@ -184,6 +184,8 @@
           <div class="nav-dropdown-menu nav-types-dropdown">
             <div class="dropdown-heading">Types</div>
             <div class="types-list">
+              <a href="/browse?category=kdrama" class="type-item-link" onclick="navigateTo('/browse?category=kdrama'); closeNavDropdowns(); return false;">🇰🇷 K-DRAMAS</a>
+              <a href="/browse?category=cdrama" class="type-item-link" onclick="navigateTo('/browse?category=cdrama'); closeNavDropdowns(); return false;">🇨🇳 C-DRAMAS</a>
               <a href="/browse?type=CM" class="type-item-link" onclick="navigateTo('/browse?type=CM'); closeNavDropdowns(); return false;">CM</a>
               <a href="/browse?type=Movie" class="type-item-link" onclick="navigateTo('/browse?type=Movie'); closeNavDropdowns(); return false;">MOVIE</a>
               <a href="/browse?type=Music" class="type-item-link" onclick="navigateTo('/browse?type=Music'); closeNavDropdowns(); return false;">MUSIC</a>
@@ -202,6 +204,19 @@
         <a href="/browse?category=movie&type=Movie" class="nav-link" data-page="movies" onclick="navigateTo('/browse?category=movie&type=Movie'); return false;">
           Movies
         </a>
+
+        <div class="nav-dropdown" id="nav-dropdown-dramas">
+          <a href="/browse?category=kdrama" class="nav-link nav-dropdown-trigger" data-page="dramas" onclick="if(window.innerWidth<=768){toggleNavDropdown(this, event); return false;} navigateTo('/browse?category=kdrama'); return false;">
+            Dramas <i class="fas fa-chevron-down nav-chevron"></i>
+          </a>
+          <div class="nav-dropdown-menu nav-types-dropdown" style="min-width: 170px;">
+            <div class="dropdown-heading">Asian Dramas</div>
+            <div class="types-list" style="grid-template-columns: 1fr;">
+              <a href="/browse?category=kdrama" class="type-item-link" onclick="navigateTo('/browse?category=kdrama'); closeNavDropdowns(); return false;">🇰🇷 K-Dramas</a>
+              <a href="/browse?category=cdrama" class="type-item-link" onclick="navigateTo('/browse?category=cdrama'); closeNavDropdowns(); return false;">🇨🇳 C-Dramas</a>
+            </div>
+          </div>
+        </div>
         <a href="/toons" class="nav-link nav-link-toons" data-page="toons" onclick="navigateTo('/toons'); return false;">
           Vault Toons
         </a>
@@ -286,6 +301,8 @@
       <a href="/browse" onclick="navigateTo('/browse'); toggleMobileMenu(); return false;"><i class="fas fa-compass"></i> Browse All</a>
       <a href="/browse?category=movie&type=Movie" onclick="navigateTo('/browse?category=movie&type=Movie'); toggleMobileMenu(); return false;"><i class="fas fa-film"></i> Movies</a>
       <a href="/browse?type=ONA" onclick="navigateTo('/browse?type=ONA'); toggleMobileMenu(); return false;"><i class="fas fa-clapperboard"></i> Web Series</a>
+      <a href="/browse?category=kdrama" onclick="navigateTo('/browse?category=kdrama'); toggleMobileMenu(); return false;"><i class="fas fa-heart"></i> K-Dramas</a>
+      <a href="/browse?category=cdrama" onclick="navigateTo('/browse?category=cdrama'); toggleMobileMenu(); return false;"><i class="fas fa-dragon"></i> C-Dramas</a>
       <a href="/genres" onclick="navigateTo('/genres'); toggleMobileMenu(); return false;"><i class="fas fa-tags"></i> Genres</a>
       <div class="dropdown-divider"></div>
       <a href="#" id="mobile-login" onclick="openAuthModal('login'); toggleMobileMenu(); return false;"><i class="fas fa-sign-in-alt"></i> Login</a>
@@ -406,6 +423,8 @@
           <a href="/browse" onclick="navigateTo('/browse'); return false;">All Anime</a>
           <a href="/browse?category=movie&type=Movie" onclick="navigateTo('/browse?category=movie&type=Movie'); return false;">Movies</a>
           <a href="/browse?type=ONA" onclick="navigateTo('/browse?type=ONA'); return false;">Web Series</a>
+          <a href="/browse?category=kdrama" onclick="navigateTo('/browse?category=kdrama'); return false;">K-Dramas</a>
+          <a href="/browse?category=cdrama" onclick="navigateTo('/browse?category=cdrama'); return false;">C-Dramas</a>
           <a href="/browse?status=Airing" onclick="navigateTo('/browse?status=Airing'); return false;">Currently Airing</a>
           <a href="/browse?sort=rating" onclick="navigateTo('/browse?sort=rating'); return false;">Top Rated</a>
         </div>

@@ -3475,7 +3475,7 @@ function handleSearch(query) {
             <div class="search-result-info">
               <h4>${a.title}</h4>
               <div class="result-meta">
-                <span>${a.type}</span>
+                <span>${displayAnimeType(a)}</span>
                 <span><i class="fas fa-star" style="color:var(--warning);"></i> ${a.rating?.toFixed(1)}</span>
                 <span>${a.release_year}</span>
               </div>
@@ -3732,6 +3732,8 @@ function initPetCompanion() {
 // ============================================================
 const AI_DEFAULT_PROMPTS = [
   { label: '🧠 Mind-Bending Thriller', prompt: 'Suggest me a mind-bending psychological thriller anime with great plot twists.' },
+  { label: '🇰🇷 Romantic K-Drama', prompt: 'Recommend the best romantic K-Dramas like Queen of Tears or Crash Landing on You.' },
+  { label: '🇨🇳 Top C-Dramas', prompt: 'What are the most popular Chinese dramas available like Hidden Love or Falling Into Your Smile?' },
   { label: '🇮🇳 Hindi Dubbed Anime', prompt: 'What are the best action anime available in Hindi Dub on AnimeVault?' },
   { label: '🎬 Iconic Anime Movie', prompt: 'Recommend a breathtaking anime movie for tonight like Your Name or Spirited Away.' },
   { label: '🍿 Top Bollywood Hits', prompt: 'Recommend top rated Bollywood blockbuster movies to watch with family or friends.' },
