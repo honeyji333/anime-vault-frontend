@@ -639,6 +639,8 @@ function displayAnimeType(animeOrType, category = null) {
   if (typeof animeOrType === 'object' && animeOrType !== null) {
     const t = animeOrType.type;
     const cat = animeOrType.category;
+    if (cat === 'kdrama') return 'K-Drama';
+    if (cat === 'cdrama') return 'C-Drama';
     const isAnime = cat === 'anime' || Boolean(animeOrType.anilist_id) || Boolean(animeOrType.mal_id);
     if (t === 'Movie' || t === 'AnimeMovie') {
       return isAnime ? 'Anime Movie' : 'Movie';
@@ -649,6 +651,8 @@ function displayAnimeType(animeOrType, category = null) {
     return t || 'TV';
   }
   const type = animeOrType;
+  if (category === 'kdrama') return 'K-Drama';
+  if (category === 'cdrama') return 'C-Drama';
   if (type === 'AnimeMovie') return 'Anime Movie';
   if (type === 'Movie') return category === 'anime' ? 'Anime Movie' : 'Movie';
   if (type === 'ONA') return 'Web Series';
@@ -785,6 +789,8 @@ async function renderHomePage() {
       <button class="quick-pill" onclick="navigateTo('/browse?type=AnimeMovie')"><i class="fas fa-film"></i> 🎬 Anime Movies</button>
       <button class="quick-pill" onclick="navigateTo('/browse?type=Movie')"><i class="fas fa-clapperboard"></i> 🍿 Movies</button>
       <button class="quick-pill" onclick="navigateTo('/browse?category=series')"><i class="fas fa-tv"></i> 📺 Web Series</button>
+      <button class="quick-pill" onclick="navigateTo('/browse?category=kdrama')"><i class="fas fa-heart"></i> 🇰🇷 K-Dramas</button>
+      <button class="quick-pill" onclick="navigateTo('/browse?category=cdrama')"><i class="fas fa-dragon"></i> 🇨🇳 C-Dramas</button>
       <button class="quick-pill" onclick="navigateTo('/browse?sort=rating')"><i class="fas fa-star"></i> Top Rated</button>
       <button class="quick-pill" onclick="navigateTo('/genres')"><i class="fas fa-tags"></i> All Genres</button>
     </div>
@@ -853,6 +859,24 @@ async function renderHomePage() {
         <a href="/browse?category=series" class="section-link" onclick="navigateTo('/browse?category=series'); return false;">View All Web Series <i class="fas fa-chevron-right"></i></a>
       </div>
       <div class="anime-grid" id="series-grid">${renderSkeletonCards(6)}</div>
+    </section>
+
+    <!-- Trending K-Dramas -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Trending K-Dramas 🇰🇷</h2>
+        <a href="/browse?category=kdrama" class="section-link" onclick="navigateTo('/browse?category=kdrama'); return false;">View All K-Dramas <i class="fas fa-chevron-right"></i></a>
+      </div>
+      <div class="anime-grid" id="kdrama-grid">${renderSkeletonCards(6)}</div>
+    </section>
+
+    <!-- Top C-Dramas -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Top C-Dramas 🇨🇳</h2>
+        <a href="/browse?category=cdrama" class="section-link" onclick="navigateTo('/browse?category=cdrama'); return false;">View All C-Dramas <i class="fas fa-chevron-right"></i></a>
+      </div>
+      <div class="anime-grid" id="cdrama-grid">${renderSkeletonCards(6)}</div>
     </section>
 
     <!-- Latest Updates -->
@@ -928,11 +952,13 @@ async function renderHomePage() {
 
   try {
     // Fetch all datasets in parallel
-    const [trending, animeMovies, movies, series, latest, popular, hindiDub, mostViewed, newReleases, completedAnime] = await Promise.all([
+    const [trending, animeMovies, movies, series, kdrama, cdrama, latest, popular, hindiDub, mostViewed, newReleases, completedAnime] = await Promise.all([
       api('/anime/trending'),
       api('/anime/anime-movies').catch(() => ({ data: [] })),
       api('/anime/movies').catch(() => ({ data: [] })),
       api('/anime/series').catch(() => ({ data: [] })),
+      api('/anime/kdrama').catch(() => ({ data: [] })),
+      api('/anime/cdrama').catch(() => ({ data: [] })),
       api('/anime/latest'),
       api('/anime/popular'),
       api('/anime/hindi-dubbed').catch(() => ({ data: [] })),
@@ -978,6 +1004,18 @@ async function renderHomePage() {
     const seriesGrid = document.getElementById('series-grid');
     if (seriesGrid && series?.data) {
       seriesGrid.innerHTML = series.data.slice(0, 12).map(renderAnimeCard).join('');
+    }
+
+    // K-Dramas grid (Trending Korean Dramas)
+    const kdramaGrid = document.getElementById('kdrama-grid');
+    if (kdramaGrid && kdrama?.data) {
+      kdramaGrid.innerHTML = kdrama.data.slice(0, 12).map(renderAnimeCard).join('');
+    }
+
+    // C-Dramas grid (Top Chinese Dramas)
+    const cdramaGrid = document.getElementById('cdrama-grid');
+    if (cdramaGrid && cdrama?.data) {
+      cdramaGrid.innerHTML = cdrama.data.slice(0, 12).map(renderAnimeCard).join('');
     }
 
     // Latest grid
@@ -1295,6 +1333,8 @@ async function renderBrowsePage(params) {
   const page = parseInt(params?.get('page')) || 1;
 
   const isHindi = dub === 'hindi';
+  const isKdrama = category === 'kdrama' || type === 'kdrama';
+  const isCdrama = category === 'cdrama' || type === 'cdrama';
   const isAnimeMovie = type === 'AnimeMovie' || type === 'anime-movies';
   const isLiveMovie = type === 'Movie' || type === 'movies' || category === 'movie' || category === 'movies' || category === 'live_action';
   const isWebSeries = type === 'ONA' || type === 'series' || category === 'series' || category === 'web-series';
@@ -1303,7 +1343,29 @@ async function renderBrowsePage(params) {
   let pageDesc = 'Discover your next favorite anime from our collection';
   let pageIcon = 'fa-compass';
 
-  if (isLiveMovie) {
+  if (isKdrama) {
+    if (genre) {
+      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      pageTitle = `${formattedGenre} K-Dramas 🇰🇷`;
+      pageDesc = `Top rated ${formattedGenre} Korean dramas (Queen of Tears, Crash Landing on You, Vincenzo & more)`;
+      pageIcon = 'fa-heart';
+    } else {
+      pageTitle = 'Trending K-Dramas 🇰🇷';
+      pageDesc = 'Binge-worthy Korean dramas (Queen of Tears, Crash Landing on You, Vincenzo, Goblin & more) in HD';
+      pageIcon = 'fa-heart';
+    }
+  } else if (isCdrama) {
+    if (genre) {
+      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      pageTitle = `${formattedGenre} C-Dramas 🇨🇳`;
+      pageDesc = `Top rated ${formattedGenre} Chinese dramas (Hidden Love, Falling Into Your Smile, The Untamed & more)`;
+      pageIcon = 'fa-dragon';
+    } else {
+      pageTitle = 'Top C-Dramas 🇨🇳';
+      pageDesc = 'Popular Chinese dramas (Hidden Love, Falling Into Your Smile, The Untamed & more) with HD streaming';
+      pageIcon = 'fa-dragon';
+    }
+  } else if (isLiveMovie) {
     if (genre) {
       const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       pageTitle = `${formattedGenre} Movies 🍿`;
@@ -1372,6 +1434,8 @@ async function renderBrowsePage(params) {
             <option value="AnimeMovie" ${isAnimeMovie ? 'selected' : ''}>🎬 Anime Movies</option>
             <option value="Movie" ${isLiveMovie ? 'selected' : ''}>🍿 Movies (Bollywood & Hollywood)</option>
             <option value="ONA" ${type.toUpperCase() === 'ONA' || isWebSeries ? 'selected' : ''}>📺 ONA / Web Series</option>
+            <option value="kdrama" ${isKdrama ? 'selected' : ''}>🇰🇷 K-Dramas</option>
+            <option value="cdrama" ${isCdrama ? 'selected' : ''}>🇨🇳 C-Dramas</option>
             <option value="TV" ${type.toUpperCase() === 'TV' ? 'selected' : ''}>📺 Anime TV Series</option>
             <option value="OVA" ${type.toUpperCase() === 'OVA' ? 'selected' : ''}>OVA</option>
             <option value="Special" ${type.toUpperCase() === 'SPECIAL' ? 'selected' : ''}>Special</option>
@@ -1407,9 +1471,9 @@ async function renderBrowsePage(params) {
     </div>
   `;
 
-  // Load genres into dropdown separated by section (Anime vs Movies vs Series)
+  // Load genres into dropdown separated by section (Anime vs Movies vs Series vs Asian Dramas)
   try {
-    const genreParam = isLiveMovie ? 'category=movie' : (isWebSeries ? 'category=series' : 'category=anime');
+    const genreParam = isKdrama ? 'category=kdrama' : (isCdrama ? 'category=cdrama' : (isLiveMovie ? 'category=movie' : (isWebSeries ? 'category=series' : 'category=anime')));
     const genresRes = await api(`/genres?${genreParam}`);
     const genreSelect = document.getElementById('filter-genre');
     if (genreSelect && genresRes?.data) {
@@ -1437,7 +1501,7 @@ async function loadBrowseResults(page = 1) {
   const type = document.getElementById('filter-type')?.value || urlParams.get('type') || '';
   const status = document.getElementById('filter-status')?.value || urlParams.get('status') || '';
   const sort = document.getElementById('filter-sort')?.value || urlParams.get('sort') || 'rating';
-  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : (type === 'ONA' || type === 'series' ? 'series' : '')));
+  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : (type === 'ONA' || type === 'series' ? 'series' : (type === 'kdrama' ? 'kdrama' : (type === 'cdrama' ? 'cdrama' : '')))));
 
   const queryParts = [];
   if (dub) queryParts.push(`dub=${dub}`);
@@ -1496,18 +1560,29 @@ function applyFilters() {
     params.set('category', 'movie');
   } else if (type === 'AnimeMovie') {
     params.set('category', 'anime');
+  } else if (type === 'kdrama') {
+    params.set('category', 'kdrama');
+  } else if (type === 'cdrama') {
+    params.set('category', 'cdrama');
   } else if (existingCategory === 'movie' && (type === 'Movie' || !type)) {
     params.set('category', 'movie');
   } else if (existingCategory === 'series') {
     params.set('category', 'series');
+  } else if (existingCategory === 'kdrama' && (type === 'kdrama' || !type)) {
+    params.set('category', 'kdrama');
+  } else if (existingCategory === 'cdrama' && (type === 'cdrama' || !type)) {
+    params.set('category', 'cdrama');
   }
 
   const newUrl = '/browse' + (params.toString() ? '?' + params.toString() : '');
   history.replaceState({}, '', newUrl);
 
-  // If user changed type between movie/anime, reload genres in dropdown to reflect that section
+  // If user changed type between movie/anime/dramas, reload genres in dropdown to reflect that section
   const isMovieNow = type === 'Movie' || params.get('category') === 'movie';
-  const genreCategoryParam = isMovieNow ? 'category=movie' : 'category=anime';
+  const isKdramaNow = type === 'kdrama' || params.get('category') === 'kdrama';
+  const isCdramaNow = type === 'cdrama' || params.get('category') === 'cdrama';
+  const isSeriesNow = type === 'ONA' || params.get('category') === 'series';
+  const genreCategoryParam = isKdramaNow ? 'category=kdrama' : (isCdramaNow ? 'category=cdrama' : (isMovieNow ? 'category=movie' : (isSeriesNow ? 'category=series' : 'category=anime')));
   api(`/genres?${genreCategoryParam}`).then(res => {
     const genreSelect = document.getElementById('filter-genre');
     if (genreSelect && res?.data) {
@@ -1894,7 +1969,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
   const isKapilShow = ep.anime_slug === 'the-great-indian-kapil-show';
   const isAnime = ep.category === 'anime' || Boolean(ep.anilist_id);
   const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id && ep.tmdb_id)) && !isAnime;
-  const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
+  const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
 
   if (serverId === 'official' && ep.youtube_video_id) {
     url = `https://www.youtube-nocookie.com/embed/${ep.youtube_video_id}?autoplay=1&rel=0&enablejsapi=1`;
@@ -2215,7 +2290,7 @@ function renderWatchAudioSelector() {
 
 window.setWatchServer = function(serverId) {
   watchState.selectedServer = serverId;
-  const isWebSeries = watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id);
+  const isWebSeries = watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id);
   if (serverId !== 'official') {
     localStorage.setItem(isWebSeries ? 'webseries_server' : 'anime_server', serverId);
   }
@@ -2502,7 +2577,7 @@ async function renderWatchPage(episodeId) {
     const isKapilShow = ep.anime_slug === 'the-great-indian-kapil-show';
     const isAnime = ep.category === 'anime' || Boolean(ep.anilist_id);
     const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id)) && !isAnime;
-    const isWebSeries = !isAnime && (ep.category === 'series' || isKapilShow || ep.anime_type === 'ONA');
+    const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
     const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
     const serversList = isWebSeriesOrLive ? [...WEBSERIES_SERVERS] : [...ANIME_SERVERS];
