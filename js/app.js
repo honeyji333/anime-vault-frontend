@@ -220,18 +220,19 @@ function renderLandingPage() {
           <i class="fas fa-arrow-right"></i>
         </button>
 
-        <!-- Gateway Route Cards (ANIME, MOVIES & TV SHOWS, VAULT TOONS) -->
+        <!-- Gateway Route Cards: 2x2 Symmetrical Quadrant Grid -->
+        <!-- Left: Anime & Vault Toons | Right: Movies & Shows & Asian Dramas -->
         <div class="landing-cards-row">
-          <div class="landing-card" onclick="navigateTo('/anime')">
-            <div class="landing-card-icon"><i class="fas fa-tv"></i></div>
+          <div class="landing-card card-anime" onclick="navigateTo('/anime')">
+            <div class="landing-card-icon"><i class="fas fa-tv" style="color:var(--accent);"></i></div>
             <div class="landing-card-text">
-              <span class="landing-card-head">ANIME</span>
+              <span class="landing-card-head" style="color:var(--accent);">ANIME</span>
               <span class="landing-card-desc">Browse full catalogue</span>
             </div>
             <i class="fas fa-arrow-right landing-card-arrow"></i>
           </div>
 
-          <div class="landing-card" onclick="navigateTo('/toons')">
+          <div class="landing-card card-toons" onclick="navigateTo('/toons')">
             <div class="landing-card-icon"><i class="fas fa-play-circle" style="color:#38bdf8;"></i></div>
             <div class="landing-card-text">
               <span class="landing-card-head" style="color:#38bdf8;">VAULT TOONS</span>
@@ -240,16 +241,16 @@ function renderLandingPage() {
             <i class="fas fa-arrow-right landing-card-arrow"></i>
           </div>
 
-          <div class="landing-card" onclick="navigateTo('/browse?type=Movie')">
-            <div class="landing-card-icon"><i class="fas fa-film"></i></div>
+          <div class="landing-card card-movies" onclick="navigateTo('/browse?type=Movie')">
+            <div class="landing-card-icon"><i class="fas fa-film" style="color:#a855f7;"></i></div>
             <div class="landing-card-text">
-              <span class="landing-card-head">MOVIES & SHOWS</span>
+              <span class="landing-card-head" style="color:#c084fc;">MOVIES & SHOWS</span>
               <span class="landing-card-desc">Bollywood & Hollywood</span>
             </div>
             <i class="fas fa-arrow-right landing-card-arrow"></i>
           </div>
 
-          <div class="landing-card" onclick="navigateTo('/browse?category=kdrama')">
+          <div class="landing-card card-dramas" onclick="navigateTo('/browse?category=kdrama')">
             <div class="landing-card-icon"><i class="fas fa-heart" style="color:#f43f5e;"></i></div>
             <div class="landing-card-text">
               <span class="landing-card-head" style="color:#f43f5e;">ASIAN DRAMAS</span>

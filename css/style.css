@@ -5116,8 +5116,8 @@ a[href*="chaturbate"] {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 22px;
-  max-width: 580px;
+  gap: 18px;
+  max-width: 660px;
   width: 100%;
   animation: landingFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -5189,29 +5189,39 @@ a[href*="chaturbate"] {
   transform: translateX(4px);
 }
 
-/* Gateway Route Cards */
+/* Gateway Route Cards (2x2 Symmetrical Quadrant Grid) */
 .landing-cards-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-areas:
+    "anime  movies"
+    "toons  dramas";
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   width: 100%;
-  max-width: 860px;
-  margin-top: 4px;
+  max-width: 640px;
+  margin: 6px auto 0;
+  box-sizing: border-box;
 }
+
+.landing-card.card-anime { grid-area: anime; }
+.landing-card.card-toons { grid-area: toons; }
+.landing-card.card-movies { grid-area: movies; }
+.landing-card.card-dramas { grid-area: dramas; }
 
 .landing-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 18px;
-  background: rgba(12, 16, 24, 0.62);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  padding: 15px 18px;
+  background: rgba(12, 16, 24, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   cursor: pointer;
   text-align: left;
   transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-sizing: border-box;
 }
 
 .landing-card:hover {
@@ -5318,16 +5328,16 @@ a[href*="chaturbate"] {
   -webkit-backdrop-filter: blur(8px) !important;
 }
 
-@media (max-width: 900px) and (min-width: 641px) {
-  .landing-cards-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 640px) {
   .landing-cards-row {
+    grid-template-areas:
+      "anime"
+      "toons"
+      "movies"
+      "dramas";
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
+    max-width: 360px;
   }
   .landing-character-img {
     height: 70vh;
