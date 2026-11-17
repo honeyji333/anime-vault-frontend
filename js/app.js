@@ -784,7 +784,7 @@ async function renderHomePage() {
       <button class="quick-pill hindi-pill" onclick="navigateTo('/browse?dub=hindi')"><i class="fas fa-flag"></i> 🇮🇳 Hindi Dub</button>
       <button class="quick-pill" onclick="navigateTo('/browse?type=AnimeMovie')"><i class="fas fa-film"></i> 🎬 Anime Movies</button>
       <button class="quick-pill" onclick="navigateTo('/browse?type=Movie')"><i class="fas fa-clapperboard"></i> 🍿 Movies</button>
-      <button class="quick-pill" onclick="navigateTo('/browse?type=ONA')"><i class="fas fa-tv"></i> 📺 Web Series</button>
+      <button class="quick-pill" onclick="navigateTo('/browse?category=series')"><i class="fas fa-tv"></i> 📺 Web Series</button>
       <button class="quick-pill" onclick="navigateTo('/browse?sort=rating')"><i class="fas fa-star"></i> Top Rated</button>
       <button class="quick-pill" onclick="navigateTo('/genres')"><i class="fas fa-tags"></i> All Genres</button>
     </div>
@@ -850,7 +850,7 @@ async function renderHomePage() {
     <section class="section">
       <div class="section-header">
         <h2 class="section-title">Web Series</h2>
-        <a href="/browse?type=ONA" class="section-link" onclick="navigateTo('/browse?type=ONA'); return false;">View All Web Series <i class="fas fa-chevron-right"></i></a>
+        <a href="/browse?category=series" class="section-link" onclick="navigateTo('/browse?category=series'); return false;">View All Web Series <i class="fas fa-chevron-right"></i></a>
       </div>
       <div class="anime-grid" id="series-grid">${renderSkeletonCards(6)}</div>
     </section>
@@ -1437,7 +1437,7 @@ async function loadBrowseResults(page = 1) {
   const type = document.getElementById('filter-type')?.value || urlParams.get('type') || '';
   const status = document.getElementById('filter-status')?.value || urlParams.get('status') || '';
   const sort = document.getElementById('filter-sort')?.value || urlParams.get('sort') || 'rating';
-  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : ''));
+  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : (type === 'ONA' || type === 'series' ? 'series' : '')));
 
   const queryParts = [];
   if (dub) queryParts.push(`dub=${dub}`);
