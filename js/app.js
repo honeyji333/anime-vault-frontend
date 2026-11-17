@@ -248,6 +248,15 @@ function renderLandingPage() {
             </div>
             <i class="fas fa-arrow-right landing-card-arrow"></i>
           </div>
+
+          <div class="landing-card" onclick="navigateTo('/browse?category=kdrama')">
+            <div class="landing-card-icon"><i class="fas fa-heart" style="color:#f43f5e;"></i></div>
+            <div class="landing-card-text">
+              <span class="landing-card-head" style="color:#f43f5e;">ASIAN DRAMAS</span>
+              <span class="landing-card-desc">K-Dramas & C-Dramas</span>
+            </div>
+            <i class="fas fa-arrow-right landing-card-arrow"></i>
+          </div>
         </div>
 
         <!-- Social Community Buttons -->
