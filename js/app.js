@@ -1704,20 +1704,26 @@ function renderDetailEpisodes() {
           const isSeason = isWebSeries && Boolean(ep.season_number);
           const epLabel = currentDetailAnime.type === 'Movie' ? 'Movie' : (isSeason ? `Season ${ep.season_number} Episode ${ep.episode_in_season || ep.number}` : `Episode ${ep.number}`);
           const isWatched = isEpisodeWatched(ep.id, serverWatched);
+          const fallbackImg = currentDetailAnime.banner_image || currentDetailAnime.cover_image || '/images/default-cover.png';
+          const thumbSrc = (ep.thumbnail && !ep.thumbnail.includes('placeholder')) ? ep.thumbnail : fallbackImg;
+          const badgeText = currentDetailAnime.type === 'Movie' ? 'MOVIE' : (isSeason ? `S${ep.season_number}:E${ep.episode_in_season || ep.number}` : `EP ${ep.number}`);
+          const displayTitle = (ep.title && ep.title !== epLabel && ep.title !== `Episode ${ep.number}` && ep.title !== `${currentDetailAnime.title}: Episode ${ep.number}`) ? ep.title : '';
+
           return `
           <div class="episode-card ${ep.filler ? 'filler' : ''} ${isWatched ? 'watched' : ''}" onclick="navigateTo('/watch/${ep.id}')">
             <div class="episode-card-thumb">
-              <img src="${ep.thumbnail}" alt="${epLabel}" loading="lazy"
-                   onerror="this.src='/images/placeholder.svg'">
+              <img src="${thumbSrc}" alt="${epLabel}" loading="lazy"
+                   onerror="this.onerror=null; this.src='${fallbackImg}';">
+              <span class="ep-thumb-badge">${badgeText}</span>
+              ${ep.duration ? `<span class="ep-thumb-duration">${escapeHtml(ep.duration)}</span>` : ''}
               <div class="ep-play"><i class="fas fa-play-circle"></i></div>
-              ${isWatched ? `<span class="watched-tag" style="position:absolute;top:6px;left:6px;z-index:2;background:rgba(0,0,0,0.75);padding:2px 7px;border-radius:4px;font-size:0.68rem;color:#a1a1aa;"><i class="fas fa-check"></i> Watched</span>` : ''}
-              ${ep.filler ? `<span class="filler-tag" style="position:absolute;bottom:6px;left:6px;z-index:2;">FILLER</span>` : ''}
+              ${isWatched ? `<span class="watched-tag" style="position:absolute;top:6px;left:6px;z-index:4;background:rgba(0,0,0,0.85);padding:2px 7px;border-radius:4px;font-size:0.68rem;color:#a1a1aa;"><i class="fas fa-check"></i> Watched</span>` : ''}
+              ${ep.filler ? `<span class="filler-tag" style="position:absolute;bottom:6px;left:6px;z-index:4;">FILLER</span>` : ''}
             </div>
             <div class="episode-card-info">
               <h4>${epLabel}</h4>
-              <p>${ep.title || ''}</p>
+              ${displayTitle ? `<p class="ep-card-subtitle" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</p>` : ''}
               ${ep.audio_language || ep.subtitle_languages ? `<p class="episode-language">${ep.audio_language ? `Audio: ${ep.audio_language}` : ''}${ep.audio_language && ep.subtitle_languages ? ' · ' : ''}${ep.subtitle_languages ? `Subs: ${ep.subtitle_languages}` : ''}</p>` : ''}
-              <p style="color:var(--text-muted);margin-top:4px;">${ep.duration}</p>
             </div>
           </div>
         `;}).join('')}
