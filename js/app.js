@@ -1797,6 +1797,38 @@ async function renderAnimeDetail(slug) {
     const firstOfficial = hasOfficial ? anime.episodes.find(e => !!e.youtube_video_id) : null;
     const isWebSeries = anime.type === 'ONA';
 
+    const detailSeasonsList = anime.seasons || [];
+    const detailMoreSeasonsHtml = detailSeasonsList.length > 1 ? `
+      <div class="more-seasons-section" id="detail-more-seasons-section" style="margin: 24px 0 16px 0;">
+        <div class="more-seasons-header">
+          <h3 class="more-seasons-title"><i class="fas fa-layer-group"></i> More seasons</h3>
+          <div class="seasons-nav-arrows">
+            <button class="season-nav-arrow" onclick="scrollDetailSeasonsSlider(-1)" aria-label="Previous seasons" title="Scroll left"><i class="fas fa-chevron-left"></i></button>
+            <button class="season-nav-arrow" onclick="scrollDetailSeasonsSlider(1)" aria-label="Next seasons" title="Scroll right"><i class="fas fa-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="seasons-slider" id="detail-seasons-slider">
+          ${detailSeasonsList.map(s => {
+            const thumb = s.poster_image || s.cover_image || s.banner_image || '/images/default-cover.png';
+            const titleText = escapeHtml(s.season_title || `Season ${s.season_number}`);
+            const navTarget = `/anime/${s.slug}`;
+            return `
+              <div class="season-card ${s.is_active ? 'active' : ''}" 
+                   onclick="${s.is_active ? '' : `navigateTo('${navTarget}')`}" 
+                   title="${titleText}">
+                <div class="season-card-thumb" style="background-image: url('${thumb}');"></div>
+                <div class="season-card-overlay"></div>
+                ${s.is_active 
+                  ? `<span class="season-card-badge">${titleText}</span>` 
+                  : `<span class="season-card-name">${titleText}</span>`
+                }
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
     let streamBannerHtml = '';
     if (hasOfficial) {
       const sourceName = firstOfficial?.source_name || 'verified partner channel';
@@ -1890,6 +1922,8 @@ async function renderAnimeDetail(slug) {
             </div>
           </div>
         </div>
+
+        ${detailMoreSeasonsHtml}
 
         <!-- Episodes Section -->
         ${anime.episodes?.length > 0 ? `
@@ -2298,6 +2332,20 @@ function renderWatchAudioSelector() {
   }
 }
 
+window.scrollSeasonsSlider = function(dir) {
+  const slider = document.getElementById('seasons-slider');
+  if (slider) {
+    slider.scrollBy({ left: dir * 320, behavior: 'smooth' });
+  }
+};
+
+window.scrollDetailSeasonsSlider = function(dir) {
+  const slider = document.getElementById('detail-seasons-slider');
+  if (slider) {
+    slider.scrollBy({ left: dir * 320, behavior: 'smooth' });
+  }
+};
+
 window.setWatchServer = function(serverId) {
   watchState.selectedServer = serverId;
   const isWebSeries = watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id);
@@ -2660,6 +2708,38 @@ async function renderWatchPage(episodeId) {
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
       : 'allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"';
 
+    const seasonsList = ep.seasons || [];
+    const moreSeasonsHtml = seasonsList.length > 1 ? `
+      <div class="more-seasons-section" id="more-seasons-section">
+        <div class="more-seasons-header">
+          <h3 class="more-seasons-title"><i class="fas fa-layer-group"></i> More seasons</h3>
+          <div class="seasons-nav-arrows">
+            <button class="season-nav-arrow" onclick="scrollSeasonsSlider(-1)" aria-label="Previous seasons" title="Scroll left"><i class="fas fa-chevron-left"></i></button>
+            <button class="season-nav-arrow" onclick="scrollSeasonsSlider(1)" aria-label="Next seasons" title="Scroll right"><i class="fas fa-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="seasons-slider" id="seasons-slider">
+          ${seasonsList.map(s => {
+            const thumb = s.poster_image || s.cover_image || s.banner_image || '/images/default-cover.png';
+            const titleText = escapeHtml(s.season_title || `Season ${s.season_number}`);
+            const navTarget = s.first_episode_id ? `/watch/${s.first_episode_id}` : `/anime/${s.slug}`;
+            return `
+              <div class="season-card ${s.is_active ? 'active' : ''}" 
+                   onclick="${s.is_active ? '' : `navigateTo('${navTarget}')`}" 
+                   title="${titleText}">
+                <div class="season-card-thumb" style="background-image: url('${thumb}');"></div>
+                <div class="season-card-overlay"></div>
+                ${s.is_active 
+                  ? `<span class="season-card-badge">${titleText}</span>` 
+                  : `<span class="season-card-name">${titleText}</span>`
+                }
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
     app.innerHTML = `
       <div class="watch-page ${watchState.theater ? 'theater-mode' : ''}">
         <div class="watch-layout">
@@ -2773,6 +2853,8 @@ async function renderWatchPage(episodeId) {
             </div>
 
             ${sourceNoteMarkup}
+
+            ${moreSeasonsHtml}
 
             <!-- Episode Details -->
             <div class="watch-details-card">
