@@ -380,18 +380,28 @@ const HINDI_DUBBED_SLUGS = new Set([
 // ===== STREAMING PROVIDERS REGISTRY (MULTI-SERVER ULTRA ARCHITECTURE) =====
 const ANIME_SERVERS = [
   {
+    id: 'hindi-toons',
+    name: 'Hindi Dub HD',
+    badge: '🇮🇳 1080p',
+    provider: 'Vault Toons Ultra Hindi Dub',
+    audio: ['hindi'],
+    build: ({ animeSlug, episode }) => {
+      const slug = animeSlug || 'naruto';
+      return `/api/toons/embed/${slug}/${episode}`;
+    }
+  },
+  {
     id: 'animeembed',
     name: 'Vidstream',
     badge: 'FAST HD',
     provider: 'Vidstream Ultra HD',
-    audio: ['sub', 'dub', 'hindi'],
+    audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      const lang = audio === 'hindi' ? '&lang=hi' : '';
       if (anilistId) {
-        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
+        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
       }
-      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -399,11 +409,10 @@ const ANIME_SERVERS = [
     name: 'MegaCloud',
     badge: 'STABLE HD',
     provider: 'MegaCloud Engine',
-    audio: ['sub', 'dub', 'hindi'],
+    audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      const lang = audio === 'hindi' ? '&lang=hi' : '';
-      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -412,12 +421,13 @@ const ANIME_SERVERS = [
     badge: 'SMOOTH 4K',
     provider: 'VidLink Pro Ultra HD',
     audio: ['sub', 'dub'],
-    build: ({ tmdbId, episode, isMovie }) => {
+    build: ({ tmdbId, season, episode, isMovie }) => {
       const id = tmdbId || 37854;
+      const s = season || 1;
       if (isMovie) {
         return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
       }
-      return `https://vidlink.pro/tv/${id}/1/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
+      return `https://vidlink.pro/tv/${id}/${s}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
     }
   },
   {
@@ -426,12 +436,13 @@ const ANIME_SERVERS = [
     badge: 'MULTI-CDN',
     provider: '2Embed Global Stream',
     audio: ['sub'],
-    build: ({ tmdbId, episode, isMovie }) => {
+    build: ({ tmdbId, season, episode, isMovie }) => {
       const id = tmdbId || 37854;
+      const s = season || 1;
       if (isMovie) {
         return `https://www.2embed.cc/embed/${id}`;
       }
-      return `https://www.2embed.cc/embedtv/${id}&s=1&e=${episode}`;
+      return `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${episode}`;
     }
   },
   {
@@ -439,11 +450,10 @@ const ANIME_SERVERS = [
     name: 'AnimeStream',
     badge: 'UHD PRO',
     provider: 'AnimeStream Mirror HD',
-    audio: ['sub', 'dub', 'hindi'],
+    audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      const lang = audio === 'hindi' ? '&lang=hi' : '';
-      return `https://animeembed.com/embed/ani/${anilistId || malId || 21}/${episode}?track=${track}${lang}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/ani/${anilistId || malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   }
 ];
@@ -2014,6 +2024,50 @@ function formatProgressTime(sec) {
   return `${remM}:${String(remS).padStart(2, '0')}`;
 }
 
+// Universal continuous multi-season episode calculator for TMDB providers (VidLink, 2Embed)
+function getTmdbSeasonAndEpisode(animeSlug, absoluteEpNum, tmdbId, epSeasonNum, epInSeason) {
+  const ep = Number(absoluteEpNum) || 1;
+
+  // 1. Naruto (TMDB 46260): 4 seasons (52, 52, 54, 62)
+  if (animeSlug === 'naruto' || animeSlug === 'naruto-classic' || tmdbId === 46260) {
+    if (ep <= 52) return { season: 1, episode: ep };
+    if (ep <= 104) return { season: 2, episode: ep - 52 };
+    if (ep <= 158) return { season: 3, episode: ep - 104 };
+    return { season: 4, episode: ep - 158 };
+  }
+
+  // 2. Naruto Shippuden (TMDB 31910): 20 seasons
+  if (animeSlug === 'naruto-shippuden' || tmdbId === 31910) {
+    const seasonCounts = [32, 21, 18, 17, 24, 31, 8, 24, 21, 25, 21, 33, 20, 25, 28, 13, 11, 21, 20, 87];
+    let accum = 0;
+    for (let s = 0; s < seasonCounts.length; s++) {
+      if (ep <= accum + seasonCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += seasonCounts[s];
+    }
+    return { season: 20, episode: Math.max(1, ep - 413) };
+  }
+
+  // 3. Bleach (TMDB 30984): 16 seasons
+  if (animeSlug === 'bleach' || animeSlug === 'bleach-classic' || tmdbId === 30984) {
+    const bleachCounts = [20, 21, 22, 28, 18, 22, 20, 16, 17, 16, 7, 17, 36, 51, 24, 24];
+    let accum = 0;
+    for (let s = 0; s < bleachCounts.length; s++) {
+      if (ep <= accum + bleachCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += bleachCounts[s];
+    }
+  }
+
+  // 4. Default: Use DB metadata if available, otherwise season 1
+  return {
+    season: epSeasonNum || 1,
+    episode: epInSeason || ep
+  };
+}
+
 function buildStreamUrl(ep, serverId, audio, startTime = 0) {
   let url = '';
   const isKapilShow = ep.anime_slug === 'the-great-indian-kapil-show';
@@ -2082,8 +2136,28 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
 
       const s = ANIME_SERVERS.find(item => item.id === serverId) || ANIME_SERVERS[0];
       const isMovie = ep.anime_type === 'Movie';
-      if (anilistId || tmdbId || malId) {
-        url = s.build({ anilistId, malId, tmdbId, episode: epNum, audio, animeTitle, isMovie, season: ep.season_number || 1 });
+
+      if (s.id === 'hindi-toons') {
+        url = s.build({ animeSlug: ep.anime_slug, episode: epNum });
+      } else if (anilistId || tmdbId || malId) {
+        const { season: tmdbSeason, episode: tmdbEpisode } = getTmdbSeasonAndEpisode(
+          ep.anime_slug,
+          epNum,
+          tmdbId,
+          ep.season_number,
+          ep.episode_in_season
+        );
+        url = s.build({
+          anilistId,
+          malId,
+          tmdbId,
+          episode: (s.id === 'vidlink-anime' || s.id === 'two-embed') ? tmdbEpisode : epNum,
+          season: (s.id === 'vidlink-anime' || s.id === 'two-embed') ? tmdbSeason : (ep.season_number || 1),
+          audio,
+          animeTitle,
+          animeSlug: ep.anime_slug,
+          isMovie
+        });
       } else if (ep.youtube_video_id) {
         url = `https://www.youtube-nocookie.com/embed/${ep.youtube_video_id}?autoplay=1&rel=0&enablejsapi=1`;
       } else {
@@ -2355,8 +2429,15 @@ window.scrollDetailSeasonsSlider = function(dir) {
 window.setWatchServer = function(serverId) {
   watchState.selectedServer = serverId;
   const isWebSeries = watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id);
-  if (serverId !== 'official') {
+  if (serverId !== 'official' && serverId !== 'hindi-toons') {
     localStorage.setItem(isWebSeries ? 'webseries_server' : 'anime_server', serverId);
+  }
+  if (serverId === 'hindi-toons') {
+    watchState.audio = 'hindi';
+    localStorage.setItem('anime_audio', 'hindi');
+  } else if (watchState.audio === 'hindi') {
+    watchState.audio = 'dub';
+    localStorage.setItem('anime_audio', 'dub');
   }
   document.querySelectorAll('.server-chip-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.server === serverId);
@@ -2366,6 +2447,8 @@ window.setWatchServer = function(serverId) {
   if (noticeText && watchState.ep) {
     if (serverId === 'official') {
       noticeText.textContent = `Official stream published by ${watchState.ep.source_name || 'verified partner'}. Audio: ${watchState.ep.audio_language || 'Original'}. Switch to Server 1-5 for multi-server playback.`;
+    } else if (serverId === 'hindi-toons') {
+      noticeText.textContent = 'Streaming via Vault Toons Ultra Hindi Dub (Multi-Server HD). Includes RubyStream 1080p, FilesForever HD & Google Drive mirrors.';
     } else if (isWebSeries) {
       noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidsrc HD, Server 2: VidLink Pro, Server 3: Vidsrc CC, Server 4: 2Embed TV). If one server is slow or unavailable, switch servers anytime.';
     } else {
@@ -2392,7 +2475,17 @@ window.setWatchAudio = function(audioMode) {
     b.classList.toggle('active', b.dataset.audio === audioMode);
   });
   if (audioMode === 'hindi') {
-    showToast('🇮🇳 Hindi Dub track selected! If audio plays in Japanese/English, switch servers or check the in-player settings.', 'success');
+    showToast('🇮🇳 Hindi Dub track selected! Loading HD Hindi Dub stream.', 'success');
+    const hasToonsHindi = ['naruto', 'naruto-classic', 'naruto-shippuden'].includes(watchState.ep?.anime_slug);
+    if (hasToonsHindi) {
+      setWatchServer('hindi-toons');
+      return;
+    }
+  } else {
+    if (watchState.selectedServer === 'hindi-toons') {
+      setWatchServer('animeembed');
+      return;
+    }
   }
   updateWatchIframe();
 };
@@ -2644,7 +2737,10 @@ async function renderWatchPage(episodeId) {
     const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
     const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
-    const serversList = isWebSeriesOrLive ? [...WEBSERIES_SERVERS] : [...ANIME_SERVERS];
+    const hasToonsHindi = ['naruto', 'naruto-classic', 'naruto-shippuden'].includes(ep.anime_slug);
+    const serversList = isWebSeriesOrLive
+      ? [...WEBSERIES_SERVERS]
+      : (hasToonsHindi ? [...ANIME_SERVERS] : ANIME_SERVERS.filter(s => s.id !== 'hindi-toons'));
     if (officialVideoId) {
       serversList.unshift({
         id: 'official',
@@ -2663,9 +2759,13 @@ async function renderWatchPage(episodeId) {
       const validWs = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
       watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'vidcore-tv';
     } else {
-      const stored = localStorage.getItem('anime_server');
-      const validAn = ['animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-      watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+      if (hasToonsHindi && watchState.audio === 'hindi') {
+        watchState.selectedServer = 'hindi-toons';
+      } else {
+        const stored = localStorage.getItem('anime_server');
+        const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
+        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+      }
     }
 
     const streamUrl = buildStreamUrl(ep, watchState.selectedServer, watchState.audio, savedProg);
@@ -2969,6 +3069,11 @@ async function renderWatchPage(episodeId) {
       try {
         const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
         if (!d) return;
+
+        if (d.command === 'set_server' && d.server) {
+          setWatchServer(d.server);
+          return;
+        }
 
         // Catch playback progress from any provider (AnimeEmbed, VidLink, JWPlayer, HTML5, YouTube)
         const t = d.currentTime ?? d.time ?? d.seconds ?? d.info?.currentTime ??
