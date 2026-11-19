@@ -377,6 +377,27 @@ const HINDI_DUBBED_SLUGS = new Set([
   'blue-box', 'pluto', 'tower-of-god'
 ]);
 
+// Vault Toons Hindi Dub provider slugs & officially dubbed batch limits
+const TOONS_HINDI_SLUGS = new Set([
+  'naruto',
+  'naruto-classic',
+  'naruto-shippuden',
+  'tokyo-revengers',
+  'jujutsu-kaisen',
+  'demon-slayer',
+  'demon-slayer-kimetsu-no-yaiba'
+]);
+
+const TOONS_MAX_HINDI_EPS = {
+  'naruto': 52,
+  'naruto-classic': 52,
+  'naruto-shippuden': 32,
+  'tokyo-revengers': 24,
+  'jujutsu-kaisen': 18,
+  'demon-slayer': 26,
+  'demon-slayer-kimetsu-no-yaiba': 26
+};
+
 // ===== STREAMING PROVIDERS REGISTRY (MULTI-SERVER ULTRA ARCHITECTURE) =====
 const ANIME_SERVERS = [
   {
@@ -2284,12 +2305,19 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
           ep.season_number,
           ep.episode_in_season
         );
-        url = s.build({
+
+        // Fail-safe for long-running series: animeembed fails on continuous high numbers (e.g. Naruto Shippuden ep > 150)
+        let effectiveServer = s;
+        if (ep.anime_slug === 'naruto-shippuden' && epNum > 150 && (s.id === 'animeembed' || s.id === 'animeembed-mal' || s.id === 'animeembed-mirror')) {
+          effectiveServer = ANIME_SERVERS.find(item => item.id === 'vidlink-anime') || s;
+        }
+
+        url = effectiveServer.build({
           anilistId,
           malId,
           tmdbId,
-          episode: (s.id === 'vidlink-anime' || s.id === 'two-embed') ? tmdbEpisode : epNum,
-          season: (s.id === 'vidlink-anime' || s.id === 'two-embed') ? tmdbSeason : (ep.season_number || 1),
+          episode: (effectiveServer.id === 'vidlink-anime' || effectiveServer.id === 'two-embed') ? tmdbEpisode : epNum,
+          season: (effectiveServer.id === 'vidlink-anime' || effectiveServer.id === 'two-embed') ? tmdbSeason : (ep.season_number || 1),
           audio,
           animeTitle,
           animeSlug: ep.anime_slug,
@@ -2613,14 +2641,24 @@ window.setWatchAudio = function(audioMode) {
   });
   if (audioMode === 'hindi') {
     showToast('🇮🇳 Hindi Dub track selected! Loading HD Hindi Dub stream.', 'success');
-    const hasToonsHindi = ['naruto', 'naruto-classic', 'naruto-shippuden'].includes(watchState.ep?.anime_slug);
-    if (hasToonsHindi) {
-      setWatchServer('hindi-toons');
-      return;
+    const slug = watchState.ep?.anime_slug;
+    const isToonsHindi = TOONS_HINDI_SLUGS.has(slug);
+    if (isToonsHindi) {
+      const maxEp = TOONS_MAX_HINDI_EPS[slug] || 999;
+      const currentEpNum = Number(watchState.ep?.number) || 1;
+      if (currentEpNum <= maxEp) {
+        setWatchServer('hindi-toons');
+        return;
+      } else {
+        showToast(`Episodes 1–${maxEp} available in Hindi Dub. Switching to VidLink PRO Multi-Audio HD.`, 'info');
+        setWatchServer('vidlink-anime');
+        return;
+      }
     }
   } else {
     if (watchState.selectedServer === 'hindi-toons') {
-      setWatchServer('animeembed');
+      const isHighEp = (watchState.ep?.anime_slug === 'naruto-shippuden' && (Number(watchState.ep?.number) || 1) > 150);
+      setWatchServer(isHighEp ? 'vidlink-anime' : 'animeembed');
       return;
     }
   }
@@ -2874,10 +2912,16 @@ async function renderWatchPage(episodeId) {
     const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
     const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
-    const hasToonsHindi = ['naruto', 'naruto-classic', 'naruto-shippuden'].includes(ep.anime_slug);
+    
+    const epNum = Number(ep.number) || 1;
+    const isToonsHindi = TOONS_HINDI_SLUGS.has(ep.anime_slug);
+    const maxHindiEp = TOONS_MAX_HINDI_EPS[ep.anime_slug] || 0;
+    const hasToonsHindi = isToonsHindi && epNum <= maxHindiEp;
+    const isPastHindiBatch = isToonsHindi && epNum > maxHindiEp;
+
     const serversList = isWebSeriesOrLive
       ? [...WEBSERIES_SERVERS]
-      : (hasToonsHindi ? [...ANIME_SERVERS] : ANIME_SERVERS.filter(s => s.id !== 'hindi-toons'));
+      : (isToonsHindi ? [...ANIME_SERVERS] : ANIME_SERVERS.filter(s => s.id !== 'hindi-toons'));
     if (officialVideoId) {
       serversList.unshift({
         id: 'official',
@@ -2896,8 +2940,29 @@ async function renderWatchPage(episodeId) {
       const validWs = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
       watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'vidcore-tv';
     } else {
-      if (hasToonsHindi && watchState.audio === 'hindi') {
-        watchState.selectedServer = 'hindi-toons';
+      if (hasToonsHindi) {
+        // Within active Hindi Dub batch (e.g. Tokyo Revengers ep 1-24, Naruto Shippuden ep 1-32)
+        const storedAudio = localStorage.getItem('anime_audio');
+        if (storedAudio === 'hindi' || !storedAudio || ep.anime_slug === 'tokyo-revengers') {
+          watchState.selectedServer = 'hindi-toons';
+          watchState.audio = 'hindi';
+        } else {
+          const stored = localStorage.getItem('anime_server');
+          const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'hindi-toons';
+        }
+      } else if (isPastHindiBatch) {
+        // High episodes where Hindi Dub batch ends (e.g. Naruto Shippuden ep 300)
+        // Auto-route to VidLink PRO to avoid broken continuous animeembed
+        const stored = localStorage.getItem('anime_server');
+        if (stored === 'two-embed') {
+          watchState.selectedServer = 'two-embed';
+        } else {
+          watchState.selectedServer = 'vidlink-anime';
+        }
+        if (watchState.audio === 'hindi') {
+          watchState.audio = 'dub';
+        }
       } else {
         const stored = localStorage.getItem('anime_server');
         const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
@@ -2922,6 +2987,22 @@ async function renderWatchPage(episodeId) {
             <p>Playing in Native Ultra High Definition 4K with Dolby Atmos sound on VidLink Pro Ultra. Safe Shield Zero-Ad active.</p>
           </div>
         </div>`
+      : (hasToonsHindi
+      ? `<div class="watch-source-note" style="border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.1);">
+          <i class="fas fa-circle-check" style="color: #10b981;" aria-hidden="true"></i>
+          <div>
+            <strong style="color:#34d399;">Official 1080p Hindi Dub Active</strong>
+            <p>Streaming ${ep.anime_title} Episode ${epNum} in official Hindi Dub audio via Vault Toons Ultra HD (RubyStream 1080p / FilesForever). Switch mirrors inside player if needed.</p>
+          </div>
+        </div>`
+      : (isPastHindiBatch
+      ? `<div class="watch-source-note" style="border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.1);">
+          <i class="fas fa-circle-info" style="color: #f59e0b;" aria-hidden="true"></i>
+          <div>
+            <strong style="color:#fbbf24;">Hindi Dub Available for Episodes 1–${maxHindiEp}</strong>
+            <p>Episode ${epNum} is playing in Multi-Audio HD on VidLink PRO & 2Embed (Sub & English Dub). Official Hindi batch ends at Ep ${maxHindiEp}.</p>
+          </div>
+        </div>`
       : (officialVideoId
       ? `<div class="watch-source-note official-source-note">
           <i class="fas fa-circle-check" aria-hidden="true"></i>
@@ -2937,7 +3018,7 @@ async function renderWatchPage(episodeId) {
             <strong>Multi-Server HD Streaming Active</strong>
             <p>${isWebSeries ? 'Streaming from verified multi-provider 4K HD feeds (VidCore Ultra HD, AutoEmbed Direct, VidLink Pro, 2Embed HD). Ad-Free Shield enabled.' : 'Streaming from verified multi-provider HD feeds (Vidstream Ultra HD, MegaCloud HD, VidLink PRO, 2Embed, AnimeStream). Ad-Free Shield enabled.'}</p>
           </div>
-        </div>`);
+        </div>`)));
 
     const epDisplayTitle = ep.anime_type === 'Movie'
       ? (isSpiderManUHD ? '4K UHD Movie' : 'Movie')
