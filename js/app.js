@@ -374,7 +374,7 @@ const HINDI_DUBBED_SLUGS = new Set([
   'dr-stone', 'vinland-saga', 'vinland-saga-season-2', 'hells-paradise',
   'classroom-of-the-elite', 'delicious-in-dungeon', 'shangri-la-frontier',
   'blue-lock', 'mashle', 'wind-breaker', 'the-apothecary-diaries', 'ranma-1-2-2024',
-  'blue-box', 'pluto', 'tower-of-god'
+  'blue-box', 'pluto', 'tower-of-god', 'beyblade', 'ben-10-alien-force', 'hunter-x-hunter', 'tokyo-ghoul'
 ]);
 
 // Vault Toons Hindi Dub provider slugs & officially dubbed batch limits
@@ -385,7 +385,19 @@ const TOONS_HINDI_SLUGS = new Set([
   'tokyo-revengers',
   'jujutsu-kaisen',
   'demon-slayer',
-  'demon-slayer-kimetsu-no-yaiba'
+  'demon-slayer-kimetsu-no-yaiba',
+  'attack-on-titan',
+  'one-punch-man',
+  'hunter-x-hunter',
+  'tokyo-ghoul',
+  'blue-lock',
+  'chainsaw-man',
+  'wind-breaker',
+  'solo-leveling',
+  'bleach-classic',
+  'bleach',
+  'beyblade',
+  'ben-10-alien-force'
 ]);
 
 const TOONS_MAX_HINDI_EPS = {
@@ -395,7 +407,19 @@ const TOONS_MAX_HINDI_EPS = {
   'tokyo-revengers': 24,
   'jujutsu-kaisen': 18,
   'demon-slayer': 26,
-  'demon-slayer-kimetsu-no-yaiba': 26
+  'demon-slayer-kimetsu-no-yaiba': 26,
+  'attack-on-titan': 25,
+  'one-punch-man': 12,
+  'hunter-x-hunter': 62,
+  'tokyo-ghoul': 12,
+  'blue-lock': 24,
+  'chainsaw-man': 12,
+  'wind-breaker': 13,
+  'solo-leveling': 12,
+  'bleach-classic': 91,
+  'bleach': 91,
+  'beyblade': 51,
+  'ben-10-alien-force': 13
 };
 
 // ===== STREAMING PROVIDERS REGISTRY (MULTI-SERVER ULTRA ARCHITECTURE) =====
