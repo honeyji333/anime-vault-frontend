@@ -1341,274 +1341,216 @@ function goToSlide(index) {
 }
 
 // ===== BROWSE PAGE =====
+// ===== BROWSE & CATALOG ENGINE =====
+let catalogDebounceTimer = null;
+const catalogFilters = {
+  search: '',
+  genre: '',
+  type: '',
+  status: '',
+  sort: 'rating',
+  dub: '',
+  category: '',
+  page: 1,
+  limit: 24
+};
+
 async function renderBrowsePage(params) {
   const app = document.getElementById('app');
-  const genre = params?.get('genre') || '';
-  const type = params?.get('type') || '';
-  const status = params?.get('status') || '';
-  const sort = params?.get('sort') || 'rating';
-  const search = params?.get('search') || '';
-  const dub = params?.get('dub') || '';
-  const category = params?.get('category') || '';
-  const page = parseInt(params?.get('page')) || 1;
+  catalogFilters.genre = params?.get('genre') || '';
+  catalogFilters.type = params?.get('type') || '';
+  catalogFilters.status = params?.get('status') || '';
+  catalogFilters.sort = params?.get('sort') || 'rating';
+  catalogFilters.search = params?.get('search') || '';
+  catalogFilters.dub = params?.get('dub') || '';
+  catalogFilters.category = params?.get('category') || '';
+  catalogFilters.page = parseInt(params?.get('page'), 10) || 1;
+  catalogFilters.limit = 24;
 
-  const isHindi = dub === 'hindi';
-  const isKdrama = category === 'kdrama' || type === 'kdrama';
-  const isCdrama = category === 'cdrama' || type === 'cdrama';
-  const isAnimeMovie = type === 'AnimeMovie' || type === 'anime-movies';
-  const isLiveMovie = type === 'Movie' || type === 'movies' || category === 'movie' || category === 'movies' || category === 'live_action';
-  const isWebSeries = type === 'ONA' || type === 'series' || category === 'series' || category === 'web-series';
+  const isHindi = catalogFilters.dub === 'hindi';
+  const isKdrama = catalogFilters.category === 'kdrama' || catalogFilters.type === 'kdrama';
+  const isCdrama = catalogFilters.category === 'cdrama' || catalogFilters.type === 'cdrama';
+  const isAnimeMovie = catalogFilters.type === 'AnimeMovie' || catalogFilters.type === 'anime-movies';
+  const isLiveMovie = catalogFilters.type === 'Movie' || catalogFilters.type === 'movies' || catalogFilters.category === 'movie' || catalogFilters.category === 'movies' || catalogFilters.category === 'live_action';
+  const isWebSeries = catalogFilters.type === 'ONA' || catalogFilters.type === 'series' || catalogFilters.category === 'series' || catalogFilters.category === 'web-series';
 
   let pageTitle = 'Browse Anime';
-  let pageDesc = 'Discover your next favorite anime from our collection';
+  let pageDesc = 'Discover your next favorite anime from our collection with instant live search & multi-filter catalog';
   let pageIcon = 'fa-compass';
 
   if (isKdrama) {
-    if (genre) {
-      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      pageTitle = `${formattedGenre} K-Dramas 🇰🇷`;
-      pageDesc = `Top rated ${formattedGenre} Korean dramas (Queen of Tears, Crash Landing on You, Vincenzo & more)`;
-      pageIcon = 'fa-heart';
-    } else {
-      pageTitle = 'Trending K-Dramas 🇰🇷';
-      pageDesc = 'Binge-worthy Korean dramas (Queen of Tears, Crash Landing on You, Vincenzo, Goblin & more) in HD';
-      pageIcon = 'fa-heart';
-    }
+    pageTitle = 'Trending K-Dramas 🇰🇷';
+    pageDesc = 'Binge-worthy Korean dramas in HD with instant live filter';
+    pageIcon = 'fa-heart';
   } else if (isCdrama) {
-    if (genre) {
-      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      pageTitle = `${formattedGenre} C-Dramas 🇨🇳`;
-      pageDesc = `Top rated ${formattedGenre} Chinese dramas (Hidden Love, Falling Into Your Smile, The Untamed & more)`;
-      pageIcon = 'fa-dragon';
-    } else {
-      pageTitle = 'Top C-Dramas 🇨🇳';
-      pageDesc = 'Popular Chinese dramas (Hidden Love, Falling Into Your Smile, The Untamed & more) with HD streaming';
-      pageIcon = 'fa-dragon';
-    }
+    pageTitle = 'Top C-Dramas 🇨🇳';
+    pageDesc = 'Popular Chinese dramas with HD streaming and live search';
+    pageIcon = 'fa-dragon';
   } else if (isLiveMovie) {
-    if (genre) {
-      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      pageTitle = `${formattedGenre} Movies 🍿`;
-      pageDesc = `Explore trending ${formattedGenre} blockbuster movies (Bollywood & Hollywood) with multi-server streaming`;
-      pageIcon = 'fa-film';
-    } else {
-      pageTitle = 'Movies 🍿';
-      pageDesc = 'Top 200 trending and popular Bollywood & Hollywood blockbuster movies with multi-server streaming';
-      pageIcon = 'fa-clapperboard';
-    }
+    pageTitle = 'Movies 🍿';
+    pageDesc = 'Bollywood & Hollywood blockbuster movies with multi-server streaming';
+    pageIcon = 'fa-film';
   } else if (isWebSeries) {
-    if (genre) {
-      const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      pageTitle = `${formattedGenre} Web Series 📺`;
-      pageDesc = `Binge-worthy ${formattedGenre} web series (Mirzapur, Sacred Games, Breaking Bad & more)`;
-      pageIcon = 'fa-tv';
-    } else {
-      pageTitle = 'Web Series 📺';
-      pageDesc = 'Binge-worthy Indian & International web series (Mirzapur, Sacred Games, Panchayat, Breaking Bad & more)';
-      pageIcon = 'fa-tv';
-    }
+    pageTitle = 'Web Series 📺';
+    pageDesc = 'Binge-worthy Indian & International web series';
+    pageIcon = 'fa-tv';
   } else if (isHindi) {
     pageTitle = 'Hindi Dubbed Anime & Shows 🇮🇳';
-    pageDesc = 'Watch top anime in Hindi Dub (Naruto, Dragon Ball, Demon Slayer, Jujutsu Kaisen, Fairy Tail & more)';
+    pageDesc = 'Watch top anime in Hindi Dub (Naruto, Shippuden, DBZ, Demon Slayer & more)';
     pageIcon = 'fa-flag';
-  } else if (genre) {
-    const formattedGenre = genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    pageTitle = `${formattedGenre} Anime ⚡`;
-    pageDesc = `Explore our collection of ${formattedGenre} anime titles with instant multi-server streaming`;
-    pageIcon = 'fa-tags';
-  } else if (type && !isAnimeMovie) {
-    pageTitle = `${type.toUpperCase()} Anime 🎬`;
-    pageDesc = `Browse all ${type.toUpperCase()} anime and series with HD streaming`;
-    pageIcon = 'fa-layer-group';
   } else if (isAnimeMovie) {
     pageTitle = 'Anime Movies 🎬';
-    pageDesc = 'Explore iconic anime films (Your Name, Spirited Away, Suzume, Mugen Train, Akira & more) in full HD';
+    pageDesc = 'Explore iconic anime films in full HD';
     pageIcon = 'fa-film';
   }
 
   app.innerHTML = `
-    <div class="browse-page">
+    <div class="browse-page catalog-page">
       <div class="browse-header">
         <h1><i class="fas ${pageIcon}"></i> ${pageTitle}</h1>
         <p>${pageDesc}</p>
       </div>
-      <div class="browse-filters" id="browse-filters">
-        <div class="filter-group">
-          <label>Audio / Dub</label>
-          <select id="filter-dub" onchange="applyFilters()">
-            <option value="">All Audio</option>
-            <option value="hindi" ${dub === 'hindi' ? 'selected' : ''}>🇮🇳 Hindi Dub</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Genre</label>
-          <select id="filter-genre" onchange="applyFilters()">
+
+      <!-- Live Search & Filter Toolbar -->
+      <div class="catalog-toolbar">
+        <div class="toolbar-primary-row">
+          
+          <!-- Search Input with Debounce -->
+          <div class="filter-input-wrap">
+            <svg class="search-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="catalogSearchInput" class="filter-input" placeholder="Search anime title, Japanese name, synopsis..." value="${escapeHtml(catalogFilters.search)}" />
+            <button id="clearSearchBtn" class="clear-search-btn" style="${catalogFilters.search ? 'display:flex;' : 'display:none;'}" title="Clear search" onclick="clearCatalogSearch()">&times;</button>
+          </div>
+
+          <!-- Dynamic Genres Dropdown -->
+          <select id="genreSelect" class="filter-select">
             <option value="">All Genres</option>
-            ${genre ? `<option value="${genre}" selected>${genre.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</option>` : ''}
           </select>
+
+          <!-- Format Dropdown -->
+          <select id="typeSelect" class="filter-select">
+            <option value="">All Formats</option>
+            <option value="TV" ${catalogFilters.type.toUpperCase() === 'TV' ? 'selected' : ''}>TV Series</option>
+            <option value="Movie" ${catalogFilters.type.toLowerCase() === 'movie' || isLiveMovie ? 'selected' : ''}>Movie</option>
+            <option value="AnimeMovie" ${isAnimeMovie ? 'selected' : ''}>Anime Movie</option>
+            <option value="OVA" ${catalogFilters.type.toUpperCase() === 'OVA' ? 'selected' : ''}>OVA</option>
+            <option value="ONA" ${catalogFilters.type.toUpperCase() === 'ONA' || isWebSeries ? 'selected' : ''}>ONA</option>
+            <option value="Special" ${catalogFilters.type.toUpperCase() === 'SPECIAL' ? 'selected' : ''}>Special</option>
+            ${isKdrama ? `<option value="kdrama" selected>K-Drama</option>` : ''}
+            ${isCdrama ? `<option value="cdrama" selected>C-Drama</option>` : ''}
+          </select>
+
+          <!-- Status Dropdown -->
+          <select id="statusSelect" class="filter-select">
+            <option value="">All Statuses</option>
+            <option value="Airing" ${catalogFilters.status.toLowerCase() === 'airing' ? 'selected' : ''}>Airing</option>
+            <option value="Completed" ${catalogFilters.status.toLowerCase() === 'completed' ? 'selected' : ''}>Completed</option>
+            <option value="Upcoming" ${catalogFilters.status.toLowerCase() === 'upcoming' ? 'selected' : ''}>Upcoming</option>
+          </select>
+
+          <!-- Sort Dropdown -->
+          <select id="sortSelect" class="filter-select">
+            <option value="rating" ${catalogFilters.sort === 'rating' ? 'selected' : ''}>Top Rated</option>
+            <option value="year" ${catalogFilters.sort === 'year' || catalogFilters.sort === 'newest' ? 'selected' : ''}>Newest Release</option>
+            <option value="views" ${catalogFilters.sort === 'views' ? 'selected' : ''}>Most Viewed</option>
+            <option value="title" ${catalogFilters.sort === 'title' ? 'selected' : ''}>Title (A-Z)</option>
+          </select>
+
+          <!-- Reset Button -->
+          <button id="resetFiltersBtn" class="btn btn-outline btn-sm" onclick="resetAllCatalogFilters()">Reset</button>
         </div>
-        <div class="filter-group">
-          <label>Type</label>
-          <select id="filter-type" onchange="applyFilters()">
-            <option value="">All Types</option>
-            <option value="AnimeMovie" ${isAnimeMovie ? 'selected' : ''}>🎬 Anime Movies</option>
-            <option value="Movie" ${isLiveMovie ? 'selected' : ''}>🍿 Movies (Bollywood & Hollywood)</option>
-            <option value="ONA" ${type.toUpperCase() === 'ONA' || isWebSeries ? 'selected' : ''}>📺 ONA / Web Series</option>
-            <option value="kdrama" ${isKdrama ? 'selected' : ''}>🇰🇷 K-Dramas</option>
-            <option value="cdrama" ${isCdrama ? 'selected' : ''}>🇨🇳 C-Dramas</option>
-            <option value="TV" ${type.toUpperCase() === 'TV' ? 'selected' : ''}>📺 Anime TV Series</option>
-            <option value="OVA" ${type.toUpperCase() === 'OVA' ? 'selected' : ''}>OVA</option>
-            <option value="Special" ${type.toUpperCase() === 'SPECIAL' ? 'selected' : ''}>Special</option>
-            <option value="tv_short" ${type.toLowerCase() === 'tv_short' ? 'selected' : ''}>TV Short</option>
-            <option value="tv_special" ${type.toLowerCase() === 'tv_special' ? 'selected' : ''}>TV Special</option>
-            <option value="Music" ${type.toUpperCase() === 'MUSIC' ? 'selected' : ''}>Music</option>
-            <option value="CM" ${type.toUpperCase() === 'CM' ? 'selected' : ''}>CM</option>
-            <option value="Scripted" ${type.toLowerCase() === 'scripted' ? 'selected' : ''}>Scripted</option>
-            <option value="Unknown" ${type.toLowerCase() === 'unknown' ? 'selected' : ''}>Unknown</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Status</label>
-          <select id="filter-status" onchange="applyFilters()">
-            <option value="">All Status</option>
-            <option value="Airing" ${status === 'Airing' ? 'selected' : ''}>Airing</option>
-            <option value="Completed" ${status === 'Completed' ? 'selected' : ''}>Completed</option>
-            <option value="Upcoming" ${status === 'Upcoming' ? 'selected' : ''}>Upcoming</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Sort By</label>
-          <select id="filter-sort" onchange="applyFilters()">
-            <option value="rating" ${sort === 'rating' ? 'selected' : ''}>Top Rated</option>
-            <option value="latest" ${sort === 'latest' ? 'selected' : ''}>Latest</option>
-            <option value="title" ${sort === 'title' ? 'selected' : ''}>Title (A-Z)</option>
-            <option value="views" ${sort === 'views' ? 'selected' : ''}>Most Viewed</option>
-          </select>
+
+        <!-- Active Filter Chips -->
+        <div id="activeFiltersRow" class="active-filters-bar" style="display: none;">
+          <span class="active-filters-label">Active:</span>
+          <div id="activeChipsContainer" style="display: inline-flex; gap: 8px; flex-wrap: wrap;"></div>
         </div>
       </div>
-      <div class="anime-grid" id="browse-grid">${renderSkeletonCards(18)}</div>
-      <div class="pagination" id="browse-pagination"></div>
+
+      <!-- Results Meta Strip -->
+      <div class="catalog-meta-strip">
+        <div id="catalogResultsCount">Loading titles...</div>
+        <div id="catalogPageMeta">Page 1</div>
+      </div>
+
+      <!-- Anime Cards Grid -->
+      <div id="catalogAnimeGrid" class="catalog-grid anime-grid">${renderSkeletonCards(18)}</div>
+
+      <!-- Pagination Controls -->
+      <div id="catalogPagination" class="pagination-wrap pagination"></div>
     </div>
   `;
 
-  // Load genres into dropdown separated by section (Anime vs Movies vs Series vs Asian Dramas)
+  // Attach Listeners
+  initCatalogEventListeners();
+
+  // Load Genres with Counts
+  await loadCatalogGenres(isKdrama, isCdrama, isLiveMovie, isWebSeries);
+
+  // Fetch Results
+  await fetchFilteredCatalog();
+}
+
+function initCatalogEventListeners() {
+  const searchInput = document.getElementById('catalogSearchInput');
+  const clearBtn = document.getElementById('clearSearchBtn');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(catalogDebounceTimer);
+      const val = e.target.value;
+      if (clearBtn) clearBtn.style.display = val ? 'flex' : 'none';
+      catalogDebounceTimer = setTimeout(() => {
+        catalogFilters.search = val.trim();
+        catalogFilters.page = 1;
+        fetchFilteredCatalog();
+      }, 300); // 300ms debounce
+    });
+  }
+
+  ['genreSelect', 'typeSelect', 'statusSelect', 'sortSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', (e) => {
+        const key = id.replace('Select', '');
+        const val = e.target.value;
+        if (key === 'genre') catalogFilters.genre = val;
+        else if (key === 'type') {
+          catalogFilters.type = val;
+          if (val === 'Movie') {
+            if (catalogFilters.category !== 'anime') catalogFilters.category = 'movie';
+          } else if (val === 'AnimeMovie') {
+            catalogFilters.category = 'anime';
+            catalogFilters.type = 'Movie';
+          }
+        } else if (key === 'status') catalogFilters.status = val;
+        else if (key === 'sort') catalogFilters.sort = val;
+        catalogFilters.page = 1;
+        fetchFilteredCatalog();
+      });
+    }
+  });
+}
+
+function clearCatalogSearch() {
+  const searchInput = document.getElementById('catalogSearchInput');
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (searchInput) searchInput.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  catalogFilters.search = '';
+  catalogFilters.page = 1;
+  fetchFilteredCatalog();
+}
+
+async function loadCatalogGenres(isKdrama, isCdrama, isLiveMovie, isWebSeries) {
   try {
     const genreParam = isKdrama ? 'category=kdrama' : (isCdrama ? 'category=cdrama' : (isLiveMovie ? 'category=movie' : (isWebSeries ? 'category=series' : 'category=anime')));
     const genresRes = await api(`/genres?${genreParam}`);
-    const genreSelect = document.getElementById('filter-genre');
+    const genreSelect = document.getElementById('genreSelect');
     if (genreSelect && genresRes?.data) {
+      const curGenre = catalogFilters.genre;
       genreSelect.innerHTML = '<option value="">All Genres</option>';
       genresRes.data.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.slug;
-        opt.textContent = `${g.name} (${g.anime_count})`;
-        if (genre && (g.slug.toLowerCase() === genre.toLowerCase() || g.name.toLowerCase() === genre.toLowerCase())) {
-          opt.selected = true;
-        }
-        genreSelect.appendChild(opt);
-      });
-    }
-  } catch (e) {}
-
-  // Load anime
-  loadBrowseResults(page);
-}
-
-async function loadBrowseResults(page = 1) {
-  const urlParams = new URLSearchParams(window.location.search);
-  const dub = document.getElementById('filter-dub')?.value ?? (urlParams.get('dub') || '');
-  const genre = document.getElementById('filter-genre')?.value || urlParams.get('genre') || '';
-  const type = document.getElementById('filter-type')?.value || urlParams.get('type') || '';
-  const status = document.getElementById('filter-status')?.value || urlParams.get('status') || '';
-  const sort = document.getElementById('filter-sort')?.value || urlParams.get('sort') || 'rating';
-  const category = urlParams.get('category') || (type === 'Movie' ? 'movie' : (type === 'AnimeMovie' ? 'anime' : (type === 'ONA' || type === 'series' ? 'series' : (type === 'kdrama' ? 'kdrama' : (type === 'cdrama' ? 'cdrama' : '')))));
-
-  const queryParts = [];
-  if (dub) queryParts.push(`dub=${dub}`);
-  if (genre) queryParts.push(`genre=${genre}`);
-  if (type) queryParts.push(`type=${type}`);
-  if (category) queryParts.push(`category=${category}`);
-  if (status) queryParts.push(`status=${status}`);
-  if (sort) queryParts.push(`sort=${sort}`);
-  queryParts.push(`page=${page}`);
-  queryParts.push('limit=24');
-
-  try {
-    const res = await api(`/anime?${queryParts.join('&')}`);
-    const grid = document.getElementById('browse-grid');
-    const pagination = document.getElementById('browse-pagination');
-
-    if (res.data.anime.length === 0) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-search"></i><h3>No titles found</h3><p>Try adjusting your filters</p></div>`;
-      pagination.innerHTML = '';
-      return;
-    }
-
-    grid.innerHTML = res.data.anime.map(renderAnimeCard).join('');
-
-    // Pagination
-    const { page: currentPage, totalPages } = res.data.pagination;
-    let pagHtml = '';
-    if (currentPage > 1) pagHtml += `<button class="page-btn" onclick="loadBrowseResults(${currentPage - 1})"><i class="fas fa-chevron-left"></i></button>`;
-    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
-      pagHtml += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="loadBrowseResults(${i})">${i}</button>`;
-    }
-    if (currentPage < totalPages) pagHtml += `<button class="page-btn" onclick="loadBrowseResults(${currentPage + 1})"><i class="fas fa-chevron-right"></i></button>`;
-    pagination.innerHTML = pagHtml;
-  } catch (err) {
-    showToast('Failed to load results', 'error');
-  }
-}
-
-function applyFilters() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const existingCategory = urlParams.get('category') || '';
-  const dub = document.getElementById('filter-dub')?.value || '';
-  const genre = document.getElementById('filter-genre')?.value || '';
-  const type = document.getElementById('filter-type')?.value || '';
-  const status = document.getElementById('filter-status')?.value || '';
-  const sort = document.getElementById('filter-sort')?.value || 'rating';
-
-  const params = new URLSearchParams();
-  if (dub) params.set('dub', dub);
-  if (genre) params.set('genre', genre);
-  if (type) params.set('type', type);
-  if (status) params.set('status', status);
-  if (sort && sort !== 'rating') params.set('sort', sort);
-
-  if (type === 'Movie') {
-    params.set('category', 'movie');
-  } else if (type === 'AnimeMovie') {
-    params.set('category', 'anime');
-  } else if (type === 'kdrama') {
-    params.set('category', 'kdrama');
-  } else if (type === 'cdrama') {
-    params.set('category', 'cdrama');
-  } else if (existingCategory === 'movie' && (type === 'Movie' || !type)) {
-    params.set('category', 'movie');
-  } else if (existingCategory === 'series') {
-    params.set('category', 'series');
-  } else if (existingCategory === 'kdrama' && (type === 'kdrama' || !type)) {
-    params.set('category', 'kdrama');
-  } else if (existingCategory === 'cdrama' && (type === 'cdrama' || !type)) {
-    params.set('category', 'cdrama');
-  }
-
-  const newUrl = '/browse' + (params.toString() ? '?' + params.toString() : '');
-  history.replaceState({}, '', newUrl);
-
-  // If user changed type between movie/anime/dramas, reload genres in dropdown to reflect that section
-  const isMovieNow = type === 'Movie' || params.get('category') === 'movie';
-  const isKdramaNow = type === 'kdrama' || params.get('category') === 'kdrama';
-  const isCdramaNow = type === 'cdrama' || params.get('category') === 'cdrama';
-  const isSeriesNow = type === 'ONA' || params.get('category') === 'series';
-  const genreCategoryParam = isKdramaNow ? 'category=kdrama' : (isCdramaNow ? 'category=cdrama' : (isMovieNow ? 'category=movie' : (isSeriesNow ? 'category=series' : 'category=anime')));
-  api(`/genres?${genreCategoryParam}`).then(res => {
-    const genreSelect = document.getElementById('filter-genre');
-    if (genreSelect && res?.data) {
-      const curGenre = genreSelect.value;
-      genreSelect.innerHTML = '<option value="">All Genres</option>';
-      res.data.forEach(g => {
         const opt = document.createElement('option');
         opt.value = g.slug;
         opt.textContent = `${g.name} (${g.anime_count})`;
@@ -1618,9 +1560,204 @@ function applyFilters() {
         genreSelect.appendChild(opt);
       });
     }
-  }).catch(() => {});
+  } catch (e) {
+    console.error('Error loading genres:', e);
+  }
+}
 
-  loadBrowseResults(1);
+async function fetchFilteredCatalog() {
+  const grid = document.getElementById('catalogAnimeGrid') || document.getElementById('browse-grid');
+  const countEl = document.getElementById('catalogResultsCount');
+  const pageMetaEl = document.getElementById('catalogPageMeta');
+  const pagination = document.getElementById('catalogPagination') || document.getElementById('browse-pagination');
+
+  if (countEl) countEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching Vault...';
+  if (grid && !grid.children.length) grid.innerHTML = renderSkeletonCards(18);
+
+  const params = new URLSearchParams();
+  if (catalogFilters.search) params.append('search', catalogFilters.search);
+  if (catalogFilters.genre) params.append('genre', catalogFilters.genre);
+  if (catalogFilters.type) params.append('type', catalogFilters.type);
+  if (catalogFilters.status) params.append('status', catalogFilters.status);
+  if (catalogFilters.sort && catalogFilters.sort !== 'rating') params.append('sort', catalogFilters.sort);
+  if (catalogFilters.dub) params.append('dub', catalogFilters.dub);
+  if (catalogFilters.category) params.append('category', catalogFilters.category);
+  params.append('page', catalogFilters.page || 1);
+  params.append('limit', catalogFilters.limit || 24);
+
+  // Sync browser URL cleanly
+  const queryStr = params.toString();
+  const newUrl = '/browse' + (queryStr ? '?' + queryStr : '');
+  window.history.replaceState({}, '', newUrl);
+
+  try {
+    const res = await api(`/anime?${params.toString()}`);
+    if (res?.success && res.data) {
+      const animeList = res.data.anime || [];
+      const p = res.data.pagination || { total: animeList.length, page: 1, totalPages: 1 };
+
+      if (countEl) countEl.innerHTML = `Showing <strong>${animeList.length}</strong> of <strong>${p.total}</strong> anime titles in catalogue`;
+      if (pageMetaEl) pageMetaEl.textContent = `Page ${p.page} of ${p.totalPages || 1}`;
+
+      renderActiveChips();
+
+      if (animeList.length === 0) {
+        if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-search"></i><h3>No titles found</h3><p>Try adjusting your search terms or filters</p><button class="btn btn-outline btn-sm" onclick="resetAllCatalogFilters()">Reset All Filters</button></div>`;
+        if (pagination) pagination.innerHTML = '';
+        return;
+      }
+
+      if (grid) grid.innerHTML = animeList.map(renderAnimeCard).join('');
+
+      // Render pagination
+      renderCatalogPagination(p);
+    }
+  } catch (err) {
+    if (countEl) countEl.textContent = 'Failed to load titles';
+    showToast('Failed to load results', 'error');
+  }
+}
+
+function renderActiveChips() {
+  const row = document.getElementById('activeFiltersRow');
+  const container = document.getElementById('activeChipsContainer');
+  if (!row || !container) return;
+
+  const chips = [];
+  if (catalogFilters.search) chips.push({ key: 'search', label: `Search: "${catalogFilters.search}"` });
+  if (catalogFilters.genre) {
+    const genreSelect = document.getElementById('genreSelect');
+    const genreText = genreSelect?.options[genreSelect.selectedIndex]?.text?.replace(/\s*\(\d+\)/, '') || catalogFilters.genre;
+    chips.push({ key: 'genre', label: `Genre: ${genreText}` });
+  }
+  if (catalogFilters.type) {
+    const typeSelect = document.getElementById('typeSelect');
+    const typeText = typeSelect?.options[typeSelect.selectedIndex]?.text || catalogFilters.type;
+    chips.push({ key: 'type', label: `Format: ${typeText}` });
+  }
+  if (catalogFilters.status) {
+    const statusSelect = document.getElementById('statusSelect');
+    const statusText = statusSelect?.options[statusSelect.selectedIndex]?.text || catalogFilters.status;
+    chips.push({ key: 'status', label: `Status: ${statusText}` });
+  }
+  if (catalogFilters.dub) {
+    chips.push({ key: 'dub', label: `Audio: Hindi Dub` });
+  }
+
+  if (chips.length > 0) {
+    row.style.display = 'flex';
+    container.innerHTML = chips.map(c => `
+      <span class="filter-chip" onclick="removeSingleFilter('${c.key}')" title="Remove filter">
+        ${escapeHtml(c.label)} &times;
+      </span>
+    `).join('') + `<span class="filter-chip clear-all" onclick="resetAllCatalogFilters()" title="Clear all filters">Clear All</span>`;
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function removeSingleFilter(key) {
+  if (key === 'search') {
+    catalogFilters.search = '';
+    const searchInput = document.getElementById('catalogSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    if (searchInput) searchInput.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+  } else if (key === 'genre') {
+    catalogFilters.genre = '';
+    const genreSelect = document.getElementById('genreSelect');
+    if (genreSelect) genreSelect.value = '';
+  } else if (key === 'type') {
+    catalogFilters.type = '';
+    const typeSelect = document.getElementById('typeSelect');
+    if (typeSelect) typeSelect.value = '';
+  } else if (key === 'status') {
+    catalogFilters.status = '';
+    const statusSelect = document.getElementById('statusSelect');
+    if (statusSelect) statusSelect.value = '';
+  } else if (key === 'dub') {
+    catalogFilters.dub = '';
+  }
+
+  catalogFilters.page = 1;
+  fetchFilteredCatalog();
+}
+
+function resetAllCatalogFilters() {
+  catalogFilters.search = '';
+  catalogFilters.genre = '';
+  catalogFilters.type = '';
+  catalogFilters.status = '';
+  catalogFilters.sort = 'rating';
+  catalogFilters.dub = '';
+  catalogFilters.page = 1;
+
+  const searchInput = document.getElementById('catalogSearchInput');
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (searchInput) searchInput.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  ['genreSelect', 'typeSelect', 'statusSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const sortSelect = document.getElementById('sortSelect');
+  if (sortSelect) sortSelect.value = 'rating';
+
+  fetchFilteredCatalog();
+}
+
+function goToCatalogPage(p) {
+  catalogFilters.page = p;
+  fetchFilteredCatalog();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderCatalogPagination(pagination) {
+  const paginationEl = document.getElementById('catalogPagination') || document.getElementById('browse-pagination');
+  if (!paginationEl) return;
+
+  const { page: currentPage, totalPages } = pagination;
+  if (!totalPages || totalPages <= 1) {
+    paginationEl.innerHTML = '';
+    return;
+  }
+
+  let pagHtml = '';
+  if (currentPage > 1) {
+    pagHtml += `<button class="page-btn" onclick="goToCatalogPage(${currentPage - 1})" aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>`;
+  }
+
+  const startPage = Math.max(1, currentPage - 2);
+  const endPage = Math.min(totalPages, currentPage + 2);
+
+  if (startPage > 1) {
+    pagHtml += `<button class="page-btn" onclick="goToCatalogPage(1)">1</button>`;
+    if (startPage > 2) pagHtml += `<span class="page-dots" style="padding: 0 4px; color: var(--text-muted);">...</span>`;
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    pagHtml += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToCatalogPage(${i})">${i}</button>`;
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) pagHtml += `<span class="page-dots" style="padding: 0 4px; color: var(--text-muted);">...</span>`;
+    pagHtml += `<button class="page-btn" onclick="goToCatalogPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  if (currentPage < totalPages) {
+    pagHtml += `<button class="page-btn" onclick="goToCatalogPage(${currentPage + 1})" aria-label="Next page"><i class="fas fa-chevron-right"></i></button>`;
+  }
+
+  paginationEl.innerHTML = pagHtml;
+}
+
+// Backward compatibility aliases
+function loadBrowseResults(page = 1) {
+  goToCatalogPage(page);
+}
+function applyFilters() {
+  fetchFilteredCatalog();
 }
 
 // ===== GENRES PAGE =====
