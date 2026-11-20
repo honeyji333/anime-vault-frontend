@@ -597,7 +597,7 @@ function isAdultOrMaliciousAdUrl(url) {
     'bet365', '1xbet', 'casino', 'vulkan', 'parimatch', 'stake', 'dirty', 'horny',
     'escort', 'webcam', 'teen', 'taboola', 'outbrain', 'mgid', 'push', 'clicknu',
     'playboy', 'hentai', 'xhamster', 'xvideos', 'pornhub', 'redtube', 'youporn',
-    'offanime.cc', '2embed.cc', 'vidsrc.pm'
+    'offanime.cc'
   ];
   return BAD_TERMS.some(t => u.includes(t));
 }
@@ -2210,7 +2210,20 @@ function formatProgressTime(sec) {
 function getTmdbSeasonAndEpisode(animeSlug, absoluteEpNum, tmdbId, epSeasonNum, epInSeason) {
   const ep = Number(absoluteEpNum) || 1;
 
-  // 1. Naruto (TMDB 46260): 4 seasons (52, 52, 54, 62)
+  // 1. One Piece (TMDB 37854): 23 seasons
+  if (animeSlug === 'one-piece' || tmdbId === 37854) {
+    const opCounts = [61, 16, 14, 39, 13, 52, 33, 35, 73, 45, 26, 14, 101, 58, 62, 50, 56, 55, 74, 14, 197, 67, 25];
+    let accum = 0;
+    for (let s = 0; s < opCounts.length; s++) {
+      if (ep <= accum + opCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += opCounts[s];
+    }
+    return { season: 23, episode: Math.max(1, ep - accum) };
+  }
+
+  // 2. Naruto (TMDB 46260): 4 seasons (52, 52, 54, 62)
   if (animeSlug === 'naruto' || animeSlug === 'naruto-classic' || tmdbId === 46260) {
     if (ep <= 52) return { season: 1, episode: ep };
     if (ep <= 104) return { season: 2, episode: ep - 52 };
@@ -2218,7 +2231,7 @@ function getTmdbSeasonAndEpisode(animeSlug, absoluteEpNum, tmdbId, epSeasonNum, 
     return { season: 4, episode: ep - 158 };
   }
 
-  // 2. Naruto Shippuden (TMDB 31910): 20 seasons
+  // 3. Naruto Shippuden (TMDB 31910): 20 seasons
   if (animeSlug === 'naruto-shippuden' || tmdbId === 31910) {
     const seasonCounts = [32, 21, 18, 17, 24, 31, 8, 24, 21, 25, 21, 33, 20, 25, 28, 13, 11, 21, 20, 87];
     let accum = 0;
@@ -2231,7 +2244,7 @@ function getTmdbSeasonAndEpisode(animeSlug, absoluteEpNum, tmdbId, epSeasonNum, 
     return { season: 20, episode: Math.max(1, ep - 413) };
   }
 
-  // 3. Bleach (TMDB 30984): 16 seasons
+  // 4. Bleach (TMDB 30984): 16 seasons
   if (animeSlug === 'bleach' || animeSlug === 'bleach-classic' || tmdbId === 30984) {
     const bleachCounts = [20, 21, 22, 28, 18, 22, 20, 16, 17, 16, 7, 17, 36, 51, 24, 24];
     let accum = 0;
@@ -2243,7 +2256,91 @@ function getTmdbSeasonAndEpisode(animeSlug, absoluteEpNum, tmdbId, epSeasonNum, 
     }
   }
 
-  // 4. Default: Use DB metadata if available, otherwise season 1
+  // 5. Dragon Ball Z (TMDB 12971): 9 seasons
+  if (animeSlug === 'dragon-ball-z' || tmdbId === 12971) {
+    const dbzCounts = [39, 35, 33, 32, 26, 29, 25, 34, 38];
+    let accum = 0;
+    for (let s = 0; s < dbzCounts.length; s++) {
+      if (ep <= accum + dbzCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += dbzCounts[s];
+    }
+  }
+
+  // 6. Hunter x Hunter (TMDB 46298): 6 seasons
+  if (animeSlug === 'hunter-x-hunter' || animeSlug === 'hunter-x-hunter-2011' || tmdbId === 46298) {
+    const hxhCounts = [26, 12, 20, 17, 61, 12];
+    let accum = 0;
+    for (let s = 0; s < hxhCounts.length; s++) {
+      if (ep <= accum + hxhCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += hxhCounts[s];
+    }
+  }
+
+  // 7. My Hero Academia (TMDB 65930): 7 seasons
+  if (animeSlug === 'my-hero-academia' || tmdbId === 65930) {
+    const mhaCounts = [13, 25, 25, 25, 25, 25, 21];
+    let accum = 0;
+    for (let s = 0; s < mhaCounts.length; s++) {
+      if (ep <= accum + mhaCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += mhaCounts[s];
+    }
+  }
+
+  // 8. Demon Slayer (TMDB 85937): 4 seasons
+  if (animeSlug === 'demon-slayer-kimetsu-no-yaiba' || tmdbId === 85937) {
+    const dsCounts = [26, 18, 11, 8];
+    let accum = 0;
+    for (let s = 0; s < dsCounts.length; s++) {
+      if (ep <= accum + dsCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += dsCounts[s];
+    }
+  }
+
+  // 9. Jujutsu Kaisen (TMDB 95479): 2 seasons
+  if (animeSlug === 'jujutsu-kaisen' || tmdbId === 95479) {
+    const jjkCounts = [24, 23];
+    let accum = 0;
+    for (let s = 0; s < jjkCounts.length; s++) {
+      if (ep <= accum + jjkCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += jjkCounts[s];
+    }
+  }
+
+  // 10. Black Clover (TMDB 73223): 4 seasons
+  if (animeSlug === 'black-clover' || tmdbId === 73223) {
+    const bcCounts = [51, 51, 52, 16];
+    let accum = 0;
+    for (let s = 0; s < bcCounts.length; s++) {
+      if (ep <= accum + bcCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += bcCounts[s];
+    }
+  }
+
+  // 11. Attack on Titan (TMDB 1429): 4 seasons
+  if (animeSlug === 'attack-on-titan' || tmdbId === 1429) {
+    const aotCounts = [25, 12, 22, 30];
+    let accum = 0;
+    for (let s = 0; s < aotCounts.length; s++) {
+      if (ep <= accum + aotCounts[s]) {
+        return { season: s + 1, episode: ep - accum };
+      }
+      accum += aotCounts[s];
+    }
+  }
+
+  // Default: Use DB metadata if available, otherwise season 1
   return {
     season: epSeasonNum || 1,
     episode: epInSeason || ep
@@ -2363,7 +2460,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
     } else if (url.includes('vidlink.pro')) {
       url += `&start=${s}&t=${s}`;
     } else if (url.includes('animeembed.com')) {
-      url += `&start=${s}&autoplay=1`;
+      url += `&start=${s}`;
     } else {
       url += `${url.includes('?') ? '&' : '?'}start=${s}&t=${s}&time=${s}`;
     }
@@ -2421,8 +2518,8 @@ function updateWatchIframe() {
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen');
   } else {
-    frame.setAttribute('referrerpolicy', 'origin');
-    frame.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write');
+    frame.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    frame.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; clipboard-write *');
   }
 
   frame.src = url;
@@ -3051,10 +3148,10 @@ async function renderWatchPage(episodeId) {
     const isOfficialServer = watchState.selectedServer === 'official';
     const iframeReferrerPolicy = isOfficialServer
       ? 'referrerpolicy="strict-origin-when-cross-origin"'
-      : 'referrerpolicy="origin"';
+      : 'referrerpolicy="no-referrer-when-downgrade"';
     const iframeAllowAttr = isOfficialServer
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
-      : 'allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"';
+      : 'allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; clipboard-write *"';
 
     const seasonsList = ep.seasons || [];
     const moreSeasonsHtml = seasonsList.length > 1 ? `
