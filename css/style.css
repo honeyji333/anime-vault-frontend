@@ -2304,6 +2304,8 @@ input, select, textarea { font-family: inherit; }
   height: 100%;
   border: 0;
   background: #000;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
 .watch-player-loader {

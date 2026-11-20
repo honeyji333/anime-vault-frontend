@@ -463,16 +463,19 @@ const ANIME_SERVERS = [
   {
     id: 'vidlink-anime',
     name: 'VidLink PRO',
-    badge: 'SMOOTH 4K',
+    badge: 'SMOOTH HD',
     provider: 'VidLink Pro Ultra HD',
     audio: ['sub', 'dub'],
-    build: ({ tmdbId, season, episode, isMovie }) => {
-      const id = tmdbId || 37854;
-      const s = season || 1;
+    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
       if (isMovie) {
+        const id = tmdbId || 37854;
         return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
       }
-      return `https://vidlink.pro/tv/${id}/${s}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      if (anilistId) {
+        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      }
+      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -480,14 +483,14 @@ const ANIME_SERVERS = [
     name: '2Embed',
     badge: 'MULTI-CDN',
     provider: '2Embed Global Stream',
-    audio: ['sub'],
-    build: ({ tmdbId, season, episode, isMovie }) => {
-      const id = tmdbId || 37854;
-      const s = season || 1;
+    audio: ['sub', 'dub'],
+    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
       if (isMovie) {
+        const id = tmdbId || 37854;
         return `https://www.2embed.cc/embed/${id}`;
       }
-      return `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${episode}`;
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -2427,18 +2430,12 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
           ep.episode_in_season
         );
 
-        // Fail-safe for long-running series: animeembed fails on continuous high numbers (e.g. Naruto Shippuden ep > 150)
-        let effectiveServer = s;
-        if (ep.anime_slug === 'naruto-shippuden' && epNum > 150 && (s.id === 'animeembed' || s.id === 'animeembed-mal' || s.id === 'animeembed-mirror')) {
-          effectiveServer = ANIME_SERVERS.find(item => item.id === 'vidlink-anime') || s;
-        }
-
-        url = effectiveServer.build({
+        url = s.build({
           anilistId,
           malId,
           tmdbId,
-          episode: (effectiveServer.id === 'vidlink-anime' || effectiveServer.id === 'two-embed') ? tmdbEpisode : epNum,
-          season: (effectiveServer.id === 'vidlink-anime' || effectiveServer.id === 'two-embed') ? tmdbSeason : (ep.season_number || 1),
+          episode: (s.id === 'vidlink-anime' || s.id === 'two-embed') && isMovie ? tmdbEpisode : epNum,
+          season: tmdbSeason,
           audio,
           animeTitle,
           animeSlug: ep.anime_slug,
@@ -3074,13 +3071,10 @@ async function renderWatchPage(episodeId) {
         }
       } else if (isPastHindiBatch) {
         // High episodes where Hindi Dub batch ends (e.g. Naruto Shippuden ep 300)
-        // Auto-route to VidLink PRO to avoid broken continuous animeembed
+        // Auto-route to Vidstream (animeembed) with English Dub/Sub
         const stored = localStorage.getItem('anime_server');
-        if (stored === 'two-embed') {
-          watchState.selectedServer = 'two-embed';
-        } else {
-          watchState.selectedServer = 'vidlink-anime';
-        }
+        const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
+        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
         if (watchState.audio === 'hindi') {
           watchState.audio = 'dub';
         }
