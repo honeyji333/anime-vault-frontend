@@ -4435,11 +4435,15 @@ async function sendAiMessage(userText) {
 // ===== ADMIN CONTROL CENTER (CONFIDENTIAL & EXCLUSIVE TO OWNER) =====
 let adminUsersCache = [];
 let adminLoginsCache = [];
+let adminWatchesCache = [];
 let adminStatsCache = null;
 let adminTargetUser = null;
-let adminActiveTab = 'users'; // 'users' | 'logins'
+let adminActiveTab = 'users'; // 'users' | 'logins' | 'watches'
+let adminUserFilter = 'all'; // 'all' | 'online' | 'today' | 'active' | 'admins'
 let adminAutoRefreshTimer = null;
 let adminAutoRefreshEnabled = true;
+let adminDetailModalUser = null;
+let adminDetailActiveSubtab = 'history'; // 'history' | 'watchlist' | 'favorites' | 'logins'
 
 function parseSqliteDate(dt) {
   if (!dt) return null;
@@ -4454,7 +4458,7 @@ function parseSqliteDate(dt) {
 
 function formatAdminRelativeTime(dt) {
   const d = parseSqliteDate(dt);
-  if (!d) return 'Unknown';
+  if (!d) return 'Never';
   const diffMs = Date.now() - d.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   if (diffSec < 45) return 'Just now';
@@ -4587,15 +4591,17 @@ async function renderAdminPage() {
 
 async function fetchAdminData(isManual = false) {
   try {
-    const [statsRes, usersRes, loginsRes] = await Promise.all([
+    const [statsRes, usersRes, loginsRes, watchesRes] = await Promise.all([
       api('/admin/stats'),
       api('/admin/users'),
-      api('/admin/logins').catch(() => ({ data: [] }))
+      api('/admin/logins').catch(() => ({ data: [] })),
+      api('/admin/recent-watches').catch(() => ({ data: [] }))
     ]);
 
     adminStatsCache = statsRes.data;
     adminUsersCache = usersRes.data || [];
     adminLoginsCache = loginsRes.data || [];
+    adminWatchesCache = watchesRes.data || [];
 
     if (isManual) {
       showToast('Admin data refreshed with live database!', 'success');
@@ -4625,6 +4631,12 @@ function renderAdminDashboardContent() {
 
   const stats = adminStatsCache || {};
   const currentSearch = document.getElementById('admin-table-search')?.value || '';
+
+  // Filter counts
+  const onlineCount = adminUsersCache.filter(u => u.is_online).length;
+  const todayCount = adminUsersCache.filter(u => u.is_active_today).length;
+  const activeCount = adminUsersCache.filter(u => (u.watched_count || 0) > 0).length;
+  const adminCount = adminUsersCache.filter(u => Boolean(u.is_admin)).length;
 
   // Preserve scroll position if re-rendering during auto-refresh
   const scrollY = window.scrollY;
@@ -4656,13 +4668,19 @@ function renderAdminDashboardContent() {
           <button class="btn btn-outline btn-sm" onclick="fetchAdminData(true)" title="Force instant database refresh">
             <i class="fas fa-rotate"></i> Refresh
           </button>
+          <button class="btn btn-outline btn-sm" onclick="exportAdminUsers('csv')" title="Download users as CSV">
+            <i class="fas fa-file-csv"></i> Export CSV
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="exportAdminUsers('json')" title="Download users as JSON">
+            <i class="fas fa-file-code"></i> JSON
+          </button>
           <button class="btn btn-primary btn-sm" onclick="navigateTo('/')">
             <i class="fas fa-globe"></i> View Site
           </button>
         </div>
       </div>
 
-      <!-- 5 Metric Stat Cards (Real-time online & logins) -->
+      <!-- 5 Metric Stat Cards -->
       <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 32px;">
         
         <!-- Total Registered Users -->
@@ -4676,7 +4694,7 @@ function renderAdminDashboardContent() {
           </div>
         </div>
 
-        <!-- Online Now (Active in past 15 min) -->
+        <!-- Online Now -->
         <div class="admin-stat-card" style="background: var(--bg-secondary); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.1);">
           <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; position: relative;">
             <i class="fas fa-signal"></i>
@@ -4684,7 +4702,7 @@ function renderAdminDashboardContent() {
           </div>
           <div>
             <div style="font-size: 0.8rem; color: #34d399; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Online Now</div>
-            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.onlineNow || 1}</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.onlineNow || onlineCount || 1}</div>
           </div>
         </div>
 
@@ -4695,7 +4713,7 @@ function renderAdminDashboardContent() {
           </div>
           <div>
             <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Active Today</div>
-            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.activeToday || 1}</div>
+            <div style="font-size: 1.7rem; font-weight: 800; color: #fff; margin-top: 2px;">${stats.activeToday || todayCount || 1}</div>
           </div>
         </div>
 
@@ -4725,12 +4743,15 @@ function renderAdminDashboardContent() {
 
       <!-- Navigation Tabs & Search Bar -->
       <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
-        <div class="admin-tabs">
+        <div class="admin-tabs" style="margin-bottom: 0;">
           <button class="admin-tab-btn ${adminActiveTab === 'users' ? 'active' : ''}" id="tab-btn-users" onclick="switchAdminTab('users')">
             <i class="fas fa-users-gear"></i> Users Directory (<span id="admin-users-tab-count">${adminUsersCache.length}</span>)
           </button>
           <button class="admin-tab-btn ${adminActiveTab === 'logins' ? 'active' : ''}" id="tab-btn-logins" onclick="switchAdminTab('logins')">
-            <i class="fas fa-satellite-dish"></i> Live Login Activity (<span id="admin-logins-tab-count">${adminLoginsCache.length}</span>)
+            <i class="fas fa-satellite-dish"></i> Login Audit (<span id="admin-logins-tab-count">${adminLoginsCache.length}</span>)
+          </button>
+          <button class="admin-tab-btn ${adminActiveTab === 'watches' ? 'active' : ''}" id="tab-btn-watches" onclick="switchAdminTab('watches')">
+            <i class="fas fa-play-circle"></i> Live Watch Stream (<span id="admin-watches-tab-count">${adminWatchesCache.length}</span>)
           </button>
         </div>
 
@@ -4738,6 +4759,25 @@ function renderAdminDashboardContent() {
           <i class="fas fa-search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
           <input type="text" id="admin-table-search" placeholder="Search user, email, IP, or device..." value="${escapeHtml(currentSearch)}" oninput="filterAdminCurrentTab(this.value)" style="width: 100%; padding: 10px 14px 10px 38px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-size: 0.85rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         </div>
+      </div>
+
+      <!-- Quick Filter Chips (for Users Tab) -->
+      <div class="admin-filter-chips" id="admin-filter-chips" style="${adminActiveTab === 'users' ? 'display:flex;' : 'display:none;'}">
+        <button class="admin-filter-chip ${adminUserFilter === 'all' ? 'active' : ''}" onclick="setAdminUserFilter('all')">
+          <i class="fas fa-list"></i> All Users (${adminUsersCache.length})
+        </button>
+        <button class="admin-filter-chip ${adminUserFilter === 'online' ? 'active' : ''}" onclick="setAdminUserFilter('online')">
+          <span class="status-pulse-dot" style="width:7px; height:7px;"></span> Online Now (${onlineCount})
+        </button>
+        <button class="admin-filter-chip ${adminUserFilter === 'today' ? 'active' : ''}" onclick="setAdminUserFilter('today')">
+          <i class="fas fa-calendar-day" style="color:#fbbf24;"></i> Active Today (${todayCount})
+        </button>
+        <button class="admin-filter-chip ${adminUserFilter === 'active' ? 'active' : ''}" onclick="setAdminUserFilter('active')">
+          <i class="fas fa-eye" style="color:#60a5fa;"></i> Active Watchers (${activeCount})
+        </button>
+        <button class="admin-filter-chip ${adminUserFilter === 'admins' ? 'active' : ''}" onclick="setAdminUserFilter('admins')">
+          <i class="fas fa-crown" style="color:#eab308;"></i> Admins (${adminCount})
+        </button>
       </div>
 
       <!-- TAB 1: USERS DIRECTORY TABLE -->
@@ -4751,13 +4791,13 @@ function renderAdminDashboardContent() {
                   <th style="padding: 14px 20px;">Email & IP</th>
                   <th style="padding: 14px 20px;">Status</th>
                   <th style="padding: 14px 20px;">Device & Logins</th>
-                  <th style="padding: 14px 20px;">Activity</th>
+                  <th style="padding: 14px 20px;">Activity Metrics</th>
                   <th style="padding: 14px 20px;">Joined</th>
                   <th style="padding: 14px 20px; text-align: right;">Actions</th>
                 </tr>
               </thead>
               <tbody id="admin-users-tbody">
-                ${renderAdminUsersRows(adminUsersCache, currentSearch)}
+                ${renderAdminUsersRows(adminUsersCache, currentSearch, adminUserFilter)}
               </tbody>
             </table>
           </div>
@@ -4773,11 +4813,11 @@ function renderAdminDashboardContent() {
                 <i class="fas fa-clock-rotate-left" style="color:#10b981;"></i> Recent Login Sessions Stream
               </h3>
               <p style="margin:2px 0 0; font-size: 0.82rem; color: var(--text-muted);">
-                Audit log of all successful logins, device fingerprints, and client IP addresses
+                Audit log of all login events, attempts, device fingerprints, and client IP addresses
               </p>
             </div>
             <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.75rem;">
-              Latest 50 Events
+              Latest 100 Events
             </span>
           </div>
 
@@ -4795,6 +4835,42 @@ function renderAdminDashboardContent() {
               </thead>
               <tbody id="admin-logins-tbody">
                 ${renderAdminLoginsRows(adminLoginsCache, currentSearch)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: LIVE WATCH FEED -->
+      <div id="admin-view-watches" style="${adminActiveTab === 'watches' ? 'display:block;' : 'display:none;'}">
+        <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+          <div style="padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 style="margin:0; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-play" style="color:#60a5fa;"></i> Live Global Watch Feed
+              </h3>
+              <p style="margin:2px 0 0; font-size: 0.82rem; color: var(--text-muted);">
+                Real-time stream of episodes being watched across all users on AnimeVault
+              </p>
+            </div>
+            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.75rem;">
+              Latest 50 Plays
+            </span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.6px;">
+                  <th style="padding: 14px 20px;">User</th>
+                  <th style="padding: 14px 20px;">Anime & Episode</th>
+                  <th style="padding: 14px 20px;">Watched Time</th>
+                  <th style="padding: 14px 20px;">Progress</th>
+                  <th style="padding: 14px 20px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="admin-watches-tbody">
+                ${renderAdminWatchesRows(adminWatchesCache, currentSearch)}
               </tbody>
             </table>
           </div>
@@ -4832,6 +4908,17 @@ function renderAdminDashboardContent() {
         </div>
       </div>
 
+      <!-- User Dossier Full Profile Modal -->
+      <div class="modal-overlay" id="admin-user-dossier-modal" style="display:none; align-items:center; justify-content:center; z-index: 9999;" onclick="if(event.target===this) closeAdminUserDetailModal()">
+        <div class="admin-dossier-card" id="admin-dossier-card">
+          <!-- Rendered dynamically by renderAdminUserDetailModal() -->
+          <div style="padding: 60px; text-align: center;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--accent);"></i>
+            <p style="color: var(--text-muted); margin-top: 12px;">Loading user profile dossier...</p>
+          </div>
+        </div>
+      </div>
+
     </div>
   `;
 
@@ -4840,17 +4927,31 @@ function renderAdminDashboardContent() {
   }
 }
 
-function renderAdminUsersRows(users, query = '') {
+function renderAdminUsersRows(users, query = '', filter = 'all') {
   const q = (query || '').toLowerCase().trim();
-  const list = q ? users.filter(u => 
-    u.username.toLowerCase().includes(q) || 
-    (u.email && u.email.toLowerCase().includes(q)) ||
-    (u.last_ip && u.last_ip.toLowerCase().includes(q)) ||
-    (u.device_type && u.device_type.toLowerCase().includes(q))
-  ) : users;
+  
+  let list = users;
+  if (filter === 'online') {
+    list = list.filter(u => u.is_online);
+  } else if (filter === 'today') {
+    list = list.filter(u => u.is_active_today);
+  } else if (filter === 'active') {
+    list = list.filter(u => (u.watched_count || 0) > 0);
+  } else if (filter === 'admins') {
+    list = list.filter(u => Boolean(u.is_admin));
+  }
+
+  if (q) {
+    list = list.filter(u => 
+      u.username.toLowerCase().includes(q) || 
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.last_ip && u.last_ip.toLowerCase().includes(q)) ||
+      (u.device_type && u.device_type.toLowerCase().includes(q))
+    );
+  }
 
   if (!list || list.length === 0) {
-    return `<tr><td colspan="7" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-user-slash" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No registered users match your search query</td></tr>`;
+    return `<tr><td colspan="7" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-user-slash" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No registered users match your filter/search query</td></tr>`;
   }
 
   return list.map(u => {
@@ -4866,12 +4967,12 @@ function renderAdminUsersRows(users, query = '') {
     else if (u.device_type === 'Bot/Tool') devIcon = 'fa-robot';
 
     return `
-      <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+      <tr class="admin-user-row" onclick="openAdminUserDetailModal(${u.id})" style="border-bottom: 1px solid var(--border);" title="Click to view full user dossier">
         <!-- User identity -->
         <td style="padding: 14px 20px;">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="position: relative;">
-              <img src="${u.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.username}`}" alt="${escapeHtml(u.username)}" style="width: 38px; height: 38px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); flex-shrink: 0; display: block;">
+              <img src="${u.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.username}`}" alt="${escapeHtml(u.username)}" style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); flex-shrink: 0; display: block;">
               ${status.isOnline ? `<span class="status-pulse-dot" style="position: absolute; bottom: 0; right: 0; border: 2px solid var(--bg-secondary);"></span>` : ''}
             </div>
             <div>
@@ -4892,7 +4993,7 @@ function renderAdminUsersRows(users, query = '') {
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="color: var(--text-primary); font-family: monospace; font-size: 0.84rem;">${escapeHtml(u.email)}</span>
-              <button onclick="navigator.clipboard.writeText('${escapeHtml(u.email)}'); showToast('Email copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.72rem;" title="Copy email">
+              <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${escapeHtml(u.email)}'); showToast('Email copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 0.72rem;" title="Copy email">
                 <i class="fas fa-copy"></i>
               </button>
             </div>
@@ -4901,7 +5002,7 @@ function renderAdminUsersRows(users, query = '') {
                 <i class="fas fa-network-wired" style="color:#60a5fa;"></i> ${escapeHtml(lastIpStr)}
               </span>
               ${u.last_ip ? `
-                <button onclick="navigator.clipboard.writeText('${escapeHtml(u.last_ip)}'); showToast('IP copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; font-size: 0.7rem;" title="Copy IP">
+                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${escapeHtml(u.last_ip)}'); showToast('IP copied to clipboard!', 'info');" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; font-size: 0.7rem;" title="Copy IP">
                   <i class="fas fa-copy"></i>
                 </button>
               ` : ''}
@@ -4934,11 +5035,16 @@ function renderAdminUsersRows(users, query = '') {
         <!-- Activity Metrics -->
         <td style="padding: 14px 20px;">
           <div style="font-size: 0.85rem; color: var(--text-primary); font-weight: 600;">
-            <i class="fas fa-eye" style="color: #60a5fa; margin-right: 4px;"></i> ${u.watched_count || 0} eps
+            <i class="fas fa-eye" style="color: #60a5fa; margin-right: 4px;"></i> ${u.watched_count || 0} eps watched
           </div>
           <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 3px;">
             ${u.watchlist_count || 0} saved · ${u.comments_count || 0} cmts
           </div>
+          ${u.last_watched_anime ? `
+            <div style="font-size: 0.72rem; color: #34d399; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" title="Last: ${escapeHtml(u.last_watched_anime)}">
+              <i class="fas fa-circle-play" style="font-size: 0.68rem;"></i> ${escapeHtml(u.last_watched_anime)}
+            </div>
+          ` : ''}
         </td>
 
         <!-- Joined Date -->
@@ -4948,11 +5054,17 @@ function renderAdminUsersRows(users, query = '') {
 
         <!-- Actions -->
         <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
-          <button class="btn btn-outline btn-sm" onclick="openAdminPasswordModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email)}')" style="padding: 6px 12px; font-size: 0.78rem; margin-right: 6px;" title="Reset password">
-            <i class="fas fa-key"></i> Set Password
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openAdminUserDetailModal(${u.id})" style="padding: 5px 10px; font-size: 0.76rem; margin-right: 5px;" title="View complete user dossier">
+            <i class="fas fa-id-card"></i> Dossier
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openAdminPasswordModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email)}')" style="padding: 5px 8px; font-size: 0.76rem; margin-right: 5px;" title="Reset user password">
+            <i class="fas fa-key"></i>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); toggleAdminUserRole(${u.id}, ${!isOwner}, '${escapeHtml(u.username)}')" style="padding: 5px 8px; font-size: 0.76rem; margin-right: 5px;" title="${isOwner ? 'Demote from Admin' : 'Promote to Admin'}">
+            <i class="fas fa-crown" style="${isOwner ? 'color:#eab308;' : 'color:var(--text-muted);'}"></i>
           </button>
           ${!isOwner ? `
-            <button class="btn btn-sm" onclick="deleteAdminUserAccount(${u.id}, '${escapeHtml(u.username)}')" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px 10px; font-size: 0.78rem;" title="Delete user">
+            <button class="btn btn-sm" onclick="event.stopPropagation(); deleteAdminUserAccount(${u.id}, '${escapeHtml(u.username)}')" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 8px; font-size: 0.76rem;" title="Delete user">
               <i class="fas fa-trash"></i>
             </button>
           ` : ''}
@@ -4965,12 +5077,13 @@ function renderAdminUsersRows(users, query = '') {
 function renderAdminLoginsRows(logins, query = '') {
   const q = (query || '').toLowerCase().trim();
   const list = q ? logins.filter(l => 
-    l.username.toLowerCase().includes(q) || 
+    (l.username && l.username.toLowerCase().includes(q)) || 
     (l.email && l.email.toLowerCase().includes(q)) ||
     (l.ip_address && l.ip_address.toLowerCase().includes(q)) ||
     (l.device_type && l.device_type.toLowerCase().includes(q)) ||
     (l.browser && l.browser.toLowerCase().includes(q)) ||
-    (l.os && l.os.toLowerCase().includes(q))
+    (l.os && l.os.toLowerCase().includes(q)) ||
+    (l.status && l.status.toLowerCase().includes(q))
   ) : logins;
 
   if (!list || list.length === 0) {
@@ -4988,6 +5101,17 @@ function renderAdminLoginsRows(logins, query = '') {
     if (l.device_type === 'Mobile') devIcon = 'fa-mobile-screen';
     else if (l.device_type === 'Tablet') devIcon = 'fa-tablet-screen-button';
     else if (l.device_type === 'Bot/Tool') devIcon = 'fa-robot';
+
+    // Status Pill
+    const st = l.status || 'SUCCESS';
+    let statusPill = `<span class="admin-status-pill online"><i class="fas fa-check-circle"></i> Success</span>`;
+    if (st === 'FAILED') {
+      statusPill = `<span class="admin-status-pill failed" title="${escapeHtml(l.failure_reason || 'Failed')}"><i class="fas fa-triangle-exclamation"></i> ${escapeHtml(l.failure_reason || 'Failed')}</span>`;
+    } else if (st === 'REGISTER') {
+      statusPill = `<span class="admin-status-pill register"><i class="fas fa-user-plus"></i> Registered</span>`;
+    } else if (st === 'RESET') {
+      statusPill = `<span class="admin-status-pill reset"><i class="fas fa-key"></i> Pass Reset</span>`;
+    }
 
     return `
       <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
@@ -5041,9 +5165,76 @@ function renderAdminLoginsRows(logins, query = '') {
 
         <!-- Status -->
         <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
-          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-            <i class="fas fa-check-circle"></i> Authenticated
-          </span>
+          ${statusPill}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderAdminWatchesRows(watches, query = '') {
+  const q = (query || '').toLowerCase().trim();
+  const list = q ? watches.filter(w => 
+    (w.username && w.username.toLowerCase().includes(q)) ||
+    (w.anime_title && w.anime_title.toLowerCase().includes(q)) ||
+    (w.episode_title && w.episode_title.toLowerCase().includes(q))
+  ) : watches;
+
+  if (!list || list.length === 0) {
+    return `<tr><td colspan="5" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-film" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No live watch events recorded yet</td></tr>`;
+  }
+
+  return list.map(w => {
+    const relTime = formatAdminRelativeTime(w.watched_at);
+    const fullTime = formatAdminFullDate(w.watched_at);
+    const progressMin = Math.round((w.progress_seconds || 0) / 60);
+
+    return `
+      <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+        <!-- User -->
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="${w.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${w.username}`}" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);">
+            <div>
+              <div style="font-weight: 700; color: #fff; font-size: 0.85rem;">${escapeHtml(w.username)}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">ID #${w.user_id}</div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Anime & Episode -->
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="${w.cover_image || '/images/no-cover.png'}" style="width: 36px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);">
+            <div>
+              <a href="/anime/${w.anime_slug}" onclick="navigateTo('/anime/${w.anime_slug}'); return false;" style="font-weight: 700; color: #fff; font-size: 0.88rem; text-decoration: none; display: block;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'">
+                ${escapeHtml(w.anime_title)}
+              </a>
+              <div style="font-size: 0.78rem; color: #34d399; margin-top: 2px;">
+                Episode ${w.episode_number}: ${escapeHtml(w.episode_title || `Episode ${w.episode_number}`)}
+              </div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Watched Time -->
+        <td style="padding: 14px 20px; white-space: nowrap;">
+          <div style="font-weight: 600; color: #fff; font-size: 0.84rem;">${relTime}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">${fullTime}</div>
+        </td>
+
+        <!-- Progress -->
+        <td style="padding: 14px 20px;">
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 20px; background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.76rem; font-weight: 600;">
+            <i class="fas fa-play"></i> ${progressMin > 0 ? `${progressMin} min` : 'Started'}
+          </div>
+        </td>
+
+        <!-- Action -->
+        <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
+          <a href="/watch/${w.anime_id}?ep=${w.episode_number}" onclick="navigateTo('/watch/${w.anime_id}?ep=${w.episode_number}'); return false;" class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">
+            <i class="fas fa-circle-play"></i> Watch
+          </a>
         </td>
       </tr>
     `;
@@ -5054,33 +5245,50 @@ function switchAdminTab(tab) {
   adminActiveTab = tab;
   const usersView = document.getElementById('admin-view-users');
   const loginsView = document.getElementById('admin-view-logins');
+  const watchesView = document.getElementById('admin-view-watches');
+  const chips = document.getElementById('admin-filter-chips');
+
   const btnUsers = document.getElementById('tab-btn-users');
   const btnLogins = document.getElementById('tab-btn-logins');
+  const btnWatches = document.getElementById('tab-btn-watches');
 
-  if (tab === 'users') {
-    if (usersView) usersView.style.display = 'block';
-    if (loginsView) loginsView.style.display = 'none';
-    if (btnUsers) btnUsers.classList.add('active');
-    if (btnLogins) btnLogins.classList.remove('active');
-  } else {
-    if (usersView) usersView.style.display = 'none';
-    if (loginsView) loginsView.style.display = 'block';
-    if (btnUsers) btnUsers.classList.remove('active');
-    if (btnLogins) btnLogins.classList.add('active');
-  }
+  if (usersView) usersView.style.display = tab === 'users' ? 'block' : 'none';
+  if (loginsView) loginsView.style.display = tab === 'logins' ? 'block' : 'none';
+  if (watchesView) watchesView.style.display = tab === 'watches' ? 'block' : 'none';
+  if (chips) chips.style.display = tab === 'users' ? 'flex' : 'none';
+
+  if (btnUsers) btnUsers.classList.toggle('active', tab === 'users');
+  if (btnLogins) btnLogins.classList.toggle('active', tab === 'logins');
+  if (btnWatches) btnWatches.classList.toggle('active', tab === 'watches');
 
   // Reapply current search filter to newly visible tab
   const searchInput = document.getElementById('admin-table-search');
   if (searchInput) filterAdminCurrentTab(searchInput.value);
 }
 
+function setAdminUserFilter(filter) {
+  adminUserFilter = filter;
+  // Update chip active classes
+  const chips = document.querySelectorAll('.admin-filter-chip');
+  chips.forEach(c => c.classList.remove('active'));
+  const currentSearch = document.getElementById('admin-table-search')?.value || '';
+  const tbody = document.getElementById('admin-users-tbody');
+  if (tbody) tbody.innerHTML = renderAdminUsersRows(adminUsersCache, currentSearch, adminUserFilter);
+  // Re-highlight active button
+  const activeBtn = Array.from(chips).find(b => b.getAttribute('onclick')?.includes(`'${filter}'`));
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
 function filterAdminCurrentTab(query) {
   if (adminActiveTab === 'users') {
     const tbody = document.getElementById('admin-users-tbody');
-    if (tbody) tbody.innerHTML = renderAdminUsersRows(adminUsersCache, query);
-  } else {
+    if (tbody) tbody.innerHTML = renderAdminUsersRows(adminUsersCache, query, adminUserFilter);
+  } else if (adminActiveTab === 'logins') {
     const tbody = document.getElementById('admin-logins-tbody');
     if (tbody) tbody.innerHTML = renderAdminLoginsRows(adminLoginsCache, query);
+  } else {
+    const tbody = document.getElementById('admin-watches-tbody');
+    if (tbody) tbody.innerHTML = renderAdminWatchesRows(adminWatchesCache, query);
   }
 }
 
@@ -5110,6 +5318,346 @@ function toggleAdminAutoRefresh() {
     `;
   }
   showToast(adminAutoRefreshEnabled ? 'Real-time live sync enabled (15s)' : 'Live sync paused', 'info');
+}
+
+// ===== USER DOSSIER MODAL =====
+async function openAdminUserDetailModal(userId) {
+  const modal = document.getElementById('admin-user-dossier-modal');
+  const card = document.getElementById('admin-dossier-card');
+  if (!modal || !card) return;
+
+  modal.style.display = 'flex';
+  card.innerHTML = `
+    <div style="padding: 60px; text-align: center;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2.2rem; color: var(--accent); margin-bottom: 14px;"></i>
+      <h3 style="color:#fff; margin:0; font-size:1.1rem;">Loading Full User Profile Dossier...</h3>
+      <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">Retrieving watch history, saved watchlist, and login audits...</p>
+    </div>
+  `;
+
+  try {
+    const res = await api(`/admin/users/${userId}`);
+    adminDetailModalUser = res.data;
+    adminDetailActiveSubtab = 'history';
+    renderAdminUserDetailModal(res.data);
+  } catch (err) {
+    card.innerHTML = `
+      <div style="padding: 40px; text-align: center;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: #ef4444; margin-bottom: 12px;"></i>
+        <h3 style="color:#fff;">Failed to load user dossier</h3>
+        <p style="color:var(--text-muted);">${escapeHtml(err.message)}</p>
+        <button class="btn btn-outline btn-sm" onclick="closeAdminUserDetailModal()">Close</button>
+      </div>
+    `;
+  }
+}
+
+function closeAdminUserDetailModal() {
+  const modal = document.getElementById('admin-user-dossier-modal');
+  if (modal) modal.style.display = 'none';
+  adminDetailModalUser = null;
+}
+
+function renderAdminUserDetailModal(dossier) {
+  const card = document.getElementById('admin-dossier-card');
+  if (!card || !dossier) return;
+
+  const u = dossier.user;
+  const isOwner = Boolean(u.is_admin);
+  const status = getAdminUserStatus(u);
+  const joinedStr = u.created_at ? formatAdminFullDate(u.created_at) : 'Unknown';
+  const lastActiveStr = u.last_active ? formatAdminFullDate(u.last_active) : (u.last_login ? formatAdminFullDate(u.last_login) : 'Never');
+
+  let devIcon = 'fa-laptop';
+  if (u.device_type === 'Mobile') devIcon = 'fa-mobile-screen';
+  else if (u.device_type === 'Tablet') devIcon = 'fa-tablet-screen-button';
+  else if (u.device_type === 'Bot/Tool') devIcon = 'fa-robot';
+
+  card.innerHTML = `
+    <!-- Modal Header -->
+    <div class="admin-dossier-header">
+      <div style="display: flex; align-items: center; gap: 18px;">
+        <div style="position: relative;">
+          <img src="${u.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${u.username}`}" alt="${escapeHtml(u.username)}" style="width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-tertiary);">
+          ${status.isOnline ? `<span class="status-pulse-dot" style="position: absolute; bottom: 2px; right: 2px; border: 2px solid var(--bg-secondary); width: 12px; height: 12px;"></span>` : ''}
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <h2 style="color: #fff; margin: 0; font-size: 1.4rem; font-weight: 800;">${escapeHtml(u.username)}</h2>
+            ${isOwner ? '<span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.4); font-size: 0.72rem; padding: 2px 8px;"><i class="fas fa-crown"></i> Admin</span>' : '<span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); font-size: 0.72rem; padding: 2px 8px;">Member</span>'}
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">ID #${u.id}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 0.85rem; flex-wrap: wrap;">
+            <span style="color: #93c5fd; font-family: monospace; display: flex; align-items: center; gap: 6px;">
+              <i class="fas fa-envelope" style="font-size:0.75rem;"></i> ${escapeHtml(u.email)}
+              <button onclick="navigator.clipboard.writeText('${escapeHtml(u.email)}'); showToast('Email copied!', 'info');" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.72rem;" title="Copy email"><i class="fas fa-copy"></i></button>
+            </span>
+            <span style="color: var(--text-muted);">&bull;</span>
+            <span style="color: var(--text-secondary);"><i class="fas fa-calendar-alt"></i> Joined: ${joinedStr}</span>
+            <span style="color: var(--text-muted);">&bull;</span>
+            <span style="color: var(--text-secondary);"><i class="fas ${devIcon}"></i> ${escapeHtml(u.device_type || 'Desktop')}</span>
+            <span style="color: var(--text-muted);">&bull;</span>
+            <span style="color: var(--text-secondary); font-family: monospace;"><i class="fas fa-network-wired"></i> ${escapeHtml(u.last_ip || '127.0.0.1')}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn btn-outline btn-sm" onclick="openAdminPasswordModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email)}')" title="Reset Password">
+          <i class="fas fa-key"></i> Set Password
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="toggleAdminUserRole(${u.id}, ${!isOwner}, '${escapeHtml(u.username)}')" title="${isOwner ? 'Demote' : 'Promote'}">
+          <i class="fas fa-crown" style="${isOwner ? 'color:#eab308;' : 'color:var(--text-muted);'}"></i> ${isOwner ? 'Demote' : 'Make Admin'}
+        </button>
+        <button onclick="closeAdminUserDetailModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.3rem; cursor: pointer; padding: 4px 8px; border-radius: 6px;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Subtabs Navigation -->
+    <div class="admin-dossier-subtabs">
+      <button class="admin-dossier-subtab-btn ${adminDetailActiveSubtab === 'history' ? 'active' : ''}" onclick="switchAdminDossierSubtab('history')">
+        <i class="fas fa-clock-rotate-left"></i> Watch History (${dossier.watchHistory.length})
+      </button>
+      <button class="admin-dossier-subtab-btn ${adminDetailActiveSubtab === 'watchlist' ? 'active' : ''}" onclick="switchAdminDossierSubtab('watchlist')">
+        <i class="fas fa-bookmark"></i> Watchlist & Saved (${dossier.watchlist.length})
+      </button>
+      <button class="admin-dossier-subtab-btn ${adminDetailActiveSubtab === 'favorites' ? 'active' : ''}" onclick="switchAdminDossierSubtab('favorites')">
+        <i class="fas fa-heart"></i> Favorites (${dossier.favorites.length}) & Comments (${dossier.comments.length})
+      </button>
+      <button class="admin-dossier-subtab-btn ${adminDetailActiveSubtab === 'logins' ? 'active' : ''}" onclick="switchAdminDossierSubtab('logins')">
+        <i class="fas fa-fingerprint"></i> Session Logins (${dossier.logins.length})
+      </button>
+    </div>
+
+    <!-- Subtab Body -->
+    <div class="admin-dossier-body" id="admin-dossier-subtab-content">
+      ${renderAdminDossierSubtabContent(dossier, adminDetailActiveSubtab)}
+    </div>
+  `;
+}
+
+function switchAdminDossierSubtab(tabName) {
+  adminDetailActiveSubtab = tabName;
+  const container = document.getElementById('admin-dossier-subtab-content');
+  if (container && adminDetailModalUser) {
+    container.innerHTML = renderAdminDossierSubtabContent(adminDetailModalUser, tabName);
+  }
+  const buttons = document.querySelectorAll('.admin-dossier-subtab-btn');
+  buttons.forEach(b => {
+    const isAct = b.getAttribute('onclick')?.includes(`'${tabName}'`);
+    b.classList.toggle('active', Boolean(isAct));
+  });
+}
+
+function renderAdminDossierSubtabContent(dossier, tabName) {
+  if (tabName === 'history') {
+    const list = dossier.watchHistory || [];
+    if (!list.length) {
+      return `
+        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+          <i class="fas fa-eye-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+          <p>No watch history records found for this user yet.</p>
+        </div>
+      `;
+    }
+    return `
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${list.map(h => {
+          const relTime = formatAdminRelativeTime(h.watched_at);
+          const fullTime = formatAdminFullDate(h.watched_at);
+          const progressMin = Math.round((h.progress_seconds || 0) / 60);
+
+          return `
+            <div class="admin-dossier-item" style="justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <img src="${h.cover_image || '/images/no-cover.png'}" style="width: 44px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);">
+                <div>
+                  <div style="font-weight: 700; color: #fff; font-size: 0.95rem;">
+                    ${escapeHtml(h.anime_title)}
+                  </div>
+                  <div style="font-size: 0.82rem; color: #34d399; margin-top: 2px;">
+                    Episode ${h.episode_number}: ${escapeHtml(h.episode_title || `Episode ${h.episode_number}`)}
+                  </div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">
+                    <i class="fas fa-clock"></i> Watched ${relTime} (${fullTime})
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; text-align: right;">
+                <div style="font-size: 0.78rem; color: #60a5fa; background: rgba(59, 130, 246, 0.12); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                  <i class="fas fa-play"></i> ${progressMin > 0 ? `${progressMin} min watched` : 'Watched'}
+                </div>
+                <a href="/watch/${h.anime_id}?ep=${h.episode_number}" target="_blank" class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.76rem;" title="Open player">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  if (tabName === 'watchlist') {
+    const list = dossier.watchlist || [];
+    if (!list.length) {
+      return `
+        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+          <i class="fas fa-bookmark" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+          <p>This user hasn't added any anime to their watchlist yet.</p>
+        </div>
+      `;
+    }
+    return `
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+        ${list.map(w => {
+          let statusBadge = `<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.72rem;">${escapeHtml(w.status || 'watching')}</span>`;
+          if (w.status === 'completed') {
+            statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem;">Completed</span>`;
+          } else if (w.status === 'plan_to_watch') {
+            statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem;">Plan to Watch</span>`;
+          }
+
+          return `
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 12px; display: flex; gap: 12px; align-items: center;">
+              <img src="${w.cover_image || '/images/no-cover.png'}" style="width: 50px; height: 70px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
+              <div style="flex: 1; overflow: hidden;">
+                <div style="font-weight: 700; color: #fff; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${escapeHtml(w.anime_title)}
+                </div>
+                <div style="margin: 4px 0;">${statusBadge}</div>
+                <div style="font-size: 0.74rem; color: var(--text-muted);">
+                  Ep ${w.current_episode || 0} / ${w.episodes_count || '?'}
+                </div>
+                ${w.rating ? `<div style="font-size: 0.72rem; color: #eab308; margin-top: 2px;"><i class="fas fa-star"></i> ${w.rating}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  if (tabName === 'favorites') {
+    const favs = dossier.favorites || [];
+    const cmts = dossier.comments || [];
+    return `
+      <div>
+        <h4 style="color:#fff; margin:0 0 12px; font-size:0.95rem;"><i class="fas fa-heart" style="color:#ec4899;"></i> Favorite Anime (${favs.length})</h4>
+        ${favs.length ? `
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 24px;">
+            ${favs.map(f => `
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; display: flex; gap: 10px; align-items: center;">
+                <img src="${f.cover_image || '/images/no-cover.png'}" style="width: 40px; height: 56px; object-fit: cover; border-radius: 6px;">
+                <div style="flex: 1; overflow: hidden;">
+                  <div style="font-weight: 700; color: #fff; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(f.anime_title)}</div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Added ${formatAdminRelativeTime(f.created_at)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom: 24px;">No favorites saved yet.</p>`}
+
+        <h4 style="color:#fff; margin:0 0 12px; font-size:0.95rem;"><i class="fas fa-comment-dots" style="color:#38bdf8;"></i> Comments Posted (${cmts.length})</h4>
+        ${cmts.length ? `
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${cmts.map(c => `
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem;">
+                  <strong style="color: #38bdf8;">${escapeHtml(c.anime_title || 'Episode Comment')}</strong>
+                  <span style="color: var(--text-muted);">${formatAdminRelativeTime(c.created_at)}</span>
+                </div>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.86rem; line-height: 1.4;">
+                  ${escapeHtml(c.content)}
+                </p>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p style="color:var(--text-muted); font-size:0.85rem;">No comments posted yet.</p>`}
+      </div>
+    `;
+  }
+
+  if (tabName === 'logins') {
+    const list = dossier.logins || [];
+    if (!list.length) {
+      return `
+        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+          <i class="fas fa-key" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+          <p>No recorded login history for this account yet.</p>
+        </div>
+      `;
+    }
+    return `
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${list.map(l => {
+          const relTime = formatAdminRelativeTime(l.logged_in_at);
+          const fullTime = formatAdminFullDate(l.logged_in_at);
+          const st = l.status || 'SUCCESS';
+          let statusBadge = `<span class="admin-status-pill online" style="font-size:0.7rem;"><i class="fas fa-check-circle"></i> Success</span>`;
+          if (st === 'FAILED') {
+            statusBadge = `<span class="admin-status-pill failed" style="font-size:0.7rem;"><i class="fas fa-triangle-exclamation"></i> ${escapeHtml(l.failure_reason || 'Failed')}</span>`;
+          } else if (st === 'RESET') {
+            statusBadge = `<span class="admin-status-pill reset" style="font-size:0.7rem;"><i class="fas fa-key"></i> Pass Reset</span>`;
+          }
+
+          return `
+            <div class="admin-dossier-item" style="justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+                  <i class="fas ${l.device_type === 'Mobile' ? 'fa-mobile-screen' : 'fa-laptop'}"></i>
+                </div>
+                <div>
+                  <div style="font-size: 0.85rem; color: #fff; font-weight: 600;">
+                    ${escapeHtml(l.browser || 'Browser')} on ${escapeHtml(l.os || 'Unknown OS')} (${escapeHtml(l.device_type || 'Desktop')})
+                  </div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">
+                    IP: ${escapeHtml(l.ip_address || '127.0.0.1')}
+                  </div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div>${statusBadge}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">${relTime} (${fullTime})</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+async function toggleAdminUserRole(userId, newRole, username) {
+  if (!confirm(`Are you sure you want to ${newRole ? 'promote' : 'demote'} "${username}" to ${newRole ? 'Admin' : 'regular Member'}?`)) {
+    return;
+  }
+  try {
+    const res = await api(`/admin/users/${userId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ is_admin: newRole ? 1 : 0 })
+    });
+    showToast(res.message || 'User role updated', 'success');
+    await fetchAdminData(false);
+    if (adminDetailModalUser && adminDetailModalUser.user.id === userId) {
+      openAdminUserDetailModal(userId);
+    }
+  } catch (err) {
+    showToast(err.message || 'Failed to update role', 'error');
+  }
+}
+
+function exportAdminUsers(format = 'csv') {
+  if (format === 'csv') {
+    window.open('/api/admin/export?format=csv', '_blank');
+  } else {
+    window.open('/api/admin/export?format=json', '_blank');
+  }
+  showToast(`Exporting users as ${format.toUpperCase()}...`, 'info');
 }
 
 function openAdminPasswordModal(userId, username, email) {
@@ -5144,6 +5692,9 @@ async function submitAdminPasswordReset() {
     });
     showToast(res.message || 'Password updated successfully!', 'success');
     closeAdminPasswordModal();
+    if (adminDetailModalUser && adminDetailModalUser.user.id === adminTargetUser.id) {
+      openAdminUserDetailModal(adminTargetUser.id);
+    }
   } catch (err) {
     showToast(err.message || 'Failed to update password', 'error');
   }
@@ -5157,6 +5708,7 @@ async function deleteAdminUserAccount(userId, username) {
   try {
     const res = await api(`/admin/users/${userId}`, { method: 'DELETE' });
     showToast(res.message || 'User deleted successfully', 'success');
+    closeAdminUserDetailModal();
     fetchAdminData(true);
   } catch (err) {
     showToast(err.message || 'Failed to delete user', 'error');
