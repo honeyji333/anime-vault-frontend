@@ -3053,8 +3053,8 @@ async function renderWatchPage(episodeId) {
       });
     }
 
-    // Determine default selected server (official video always takes priority for 100% reliable playback)
-    if (officialVideoId) {
+    // Determine default selected server (official video always takes priority for 100% reliable playback, while live-action movies default to 4K UHD server)
+    if (officialVideoId && !isLiveMovie) {
       watchState.selectedServer = 'official';
     } else if (isWebSeriesOrLive) {
       const stored = localStorage.getItem('webseries_server');
