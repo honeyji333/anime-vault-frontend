@@ -7597,3 +7597,179 @@ a[href*="chaturbate"] {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   Real-Time Async Watch Progress Heartbeat Sync Bar (SQLite DB Sync)
+   ========================================================================== */
+.watch-sync-heartbeat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(18, 20, 29, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+.watch-sync-heartbeat-bar:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+
+.sync-status-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sync-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.sync-status-dot.pulsing {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: syncPulseDot 2s infinite;
+}
+
+@keyframes syncPulseDot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.sync-status-label {
+  font-size: 0.84rem;
+  color: #94a3b8;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sync-status-label strong {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.sync-db-tag {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.sync-progress-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  max-width: 340px;
+}
+
+.sync-progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  transition: width 0.4s ease;
+}
+
+.sync-progress-pct-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ef4444;
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.sync-actions-right {
+  flex-shrink: 0;
+}
+
+.force-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.force-sync-btn i {
+  color: #eab308;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+}
+
+.force-sync-btn:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
+  transform: translateY(-1px);
+}
+
+.force-sync-btn:hover i {
+  color: #ef4444;
+  transform: scale(1.15);
+}
+
+.force-sync-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .watch-sync-heartbeat-bar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .sync-progress-center {
+    order: 3;
+    max-width: 100%;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .sync-status-left {
+    flex: 1;
+  }
+}
+

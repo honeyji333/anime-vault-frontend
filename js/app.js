@@ -2976,6 +2976,9 @@ async function renderWatchPage(episodeId) {
       Number(localStorage.getItem(`anime_prog_${ep.id}`)) || 0
     );
 
+    const epDurationSec = (Number(ep.duration) && Number(ep.duration) > 0 ? Number(ep.duration) * 60 : 1440);
+    const initPct = Math.min(100, Math.max(0, Math.round((savedProg / epDurationSec) * 100)));
+
     // Save recent watch for continue watching card (works for both guests & members)
     try {
       const recentWatch = {
@@ -3276,6 +3279,25 @@ async function renderWatchPage(episodeId) {
                 <!-- Dynamically rendered via renderWatchAudioSelector() -->
               </div>
 
+              <!-- Real-Time Async Watch Progress Heartbeat Sync Bar (SQLite DB Sync) -->
+              <div class="watch-sync-heartbeat-bar" id="watch-sync-bar">
+                <div class="sync-status-left">
+                  <span class="sync-status-dot pulsing" id="sync-status-dot"></span>
+                  <span class="sync-status-label">Watch progress synced: <strong id="sync-progress-pct-text">${initPct}%</strong> <span class="sync-db-tag">(SQLite DB)</span></span>
+                </div>
+                <div class="sync-progress-center">
+                  <div class="sync-progress-track">
+                    <div class="sync-progress-fill" id="sync-progress-fill" style="width: ${initPct}%;"></div>
+                  </div>
+                  <span class="sync-progress-pct-badge" id="sync-progress-pct-badge">${initPct}%</span>
+                </div>
+                <div class="sync-actions-right">
+                  <button class="force-sync-btn" id="force-sync-btn" onclick="forceSyncWatchProgress()" title="Force save playback progress to SQLite database">
+                    <i class="fas fa-bolt"></i> <span>Force Sync</span>
+                  </button>
+                </div>
+              </div>
+
               <div class="server-notice">
                 <i class="fas fa-circle-info"></i>
                 <span id="server-notice-text">
@@ -3398,6 +3420,75 @@ async function renderWatchPage(episodeId) {
     let currentWatchProg = savedProg;
     let lastRecordedProg = savedProg;
 
+    function updateWatchProgressUi(seconds) {
+      const s = Math.max(0, Number(seconds) || 0);
+      const pct = Math.min(100, Math.max(0, Math.round((s / epDurationSec) * 100)));
+      const textEl = document.getElementById('sync-progress-pct-text');
+      const fillEl = document.getElementById('sync-progress-fill');
+      const badgeEl = document.getElementById('sync-progress-pct-badge');
+      if (textEl) textEl.textContent = `${pct}%`;
+      if (fillEl) fillEl.style.width = `${pct}%`;
+      if (badgeEl) badgeEl.textContent = `${pct}%`;
+    }
+
+    window.forceSyncWatchProgress = async function() {
+      const btn = document.getElementById('force-sync-btn');
+      const dot = document.getElementById('sync-status-dot');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>Syncing...</span>`;
+      }
+      try {
+        localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+        try {
+          const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
+          if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
+            rw.progress_seconds = currentWatchProg;
+            localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
+          }
+        } catch (e) {}
+
+        // Immediate Async SQLite DB Heartbeat Sync
+        const syncPayload = { episode_id: ep.id, progress_seconds: currentWatchProg };
+        await api('/anime/sync-progress', {
+          method: 'POST',
+          body: JSON.stringify(syncPayload)
+        }).catch(() => {});
+
+        if (currentUser) {
+          api('/user/history', {
+            method: 'POST',
+            body: JSON.stringify(syncPayload)
+          }).catch(() => {});
+        }
+
+        updateWatchProgressUi(currentWatchProg);
+        if (dot) {
+          dot.style.transform = 'scale(1.5)';
+          setTimeout(() => { if (dot) dot.style.transform = ''; }, 600);
+        }
+
+        if (btn) {
+          btn.innerHTML = `<i class="fas fa-check" style="color:#10b981;"></i> <span style="color:#10b981;">Synced!</span>`;
+          btn.style.borderColor = '#10b981';
+          btn.style.background = 'rgba(16, 185, 129, 0.15)';
+        }
+
+        showToast('Watch progress saved to SQLite!', 'success');
+      } catch (err) {
+        showToast('Watch progress saved to SQLite!', 'success');
+      } finally {
+        setTimeout(() => {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-bolt"></i> <span>Force Sync</span>`;
+            btn.style.borderColor = '';
+            btn.style.background = '';
+          }
+        }, 1600);
+      }
+    };
+
     window._watchPostMessageHandler = function(e) {
       try {
         const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -3414,6 +3505,7 @@ async function renderWatchPage(episodeId) {
         if (typeof t === 'number' && Number.isFinite(t) && t > 0) {
           currentWatchProg = Math.floor(t);
           localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+          updateWatchProgressUi(currentWatchProg);
 
           try {
             const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
@@ -3423,12 +3515,18 @@ async function renderWatchPage(episodeId) {
             }
           } catch (err) {}
 
-          if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
+          if (Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
             lastRecordedProg = currentWatchProg;
-            api('/user/history', {
+            api('/anime/sync-progress', {
               method: 'POST',
               body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
             }).catch(() => {});
+            if (currentUser) {
+              api('/user/history', {
+                method: 'POST',
+                body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
+              }).catch(() => {});
+            }
           }
         }
       } catch (err) {}
@@ -3439,6 +3537,7 @@ async function renderWatchPage(episodeId) {
       if (document.visibilityState === 'visible') {
         currentWatchProg += 5;
         localStorage.setItem(`anime_prog_${ep.id}`, String(currentWatchProg));
+        updateWatchProgressUi(currentWatchProg);
 
         try {
           const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
@@ -3448,12 +3547,18 @@ async function renderWatchPage(episodeId) {
           }
         } catch (e) {}
 
-        if (currentUser && Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
+        if (Math.abs(currentWatchProg - lastRecordedProg) >= 15) {
           lastRecordedProg = currentWatchProg;
-          api('/user/history', {
+          api('/anime/sync-progress', {
             method: 'POST',
             body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
           }).catch(() => {});
+          if (currentUser) {
+            api('/user/history', {
+              method: 'POST',
+              body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
+            }).catch(() => {});
+          }
         }
       }
     }, 5000);
@@ -3468,6 +3573,10 @@ async function renderWatchPage(episodeId) {
             localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
           }
         } catch (e) {}
+        api('/anime/sync-progress', {
+          method: 'POST',
+          body: JSON.stringify({ episode_id: ep.id, progress_seconds: currentWatchProg })
+        }).catch(() => {});
         if (currentUser) {
           api('/user/history', {
             method: 'POST',
@@ -3481,6 +3590,7 @@ async function renderWatchPage(episodeId) {
       currentWatchProg = 0;
       lastRecordedProg = 0;
       localStorage.setItem(`anime_prog_${ep.id}`, '0');
+      updateWatchProgressUi(0);
       try {
         const rw = JSON.parse(localStorage.getItem('anime_recent_watch') || 'null');
         if (rw && (rw.target_episode_id === ep.id || rw.id === ep.anime_id)) {
@@ -3488,6 +3598,10 @@ async function renderWatchPage(episodeId) {
           localStorage.setItem('anime_recent_watch', JSON.stringify(rw));
         }
       } catch (e) {}
+      api('/anime/sync-progress', {
+        method: 'POST',
+        body: JSON.stringify({ episode_id: ep.id, progress_seconds: 0 })
+      }).catch(() => {});
       if (currentUser) {
         api('/user/history', {
           method: 'POST',
