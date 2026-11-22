@@ -744,6 +744,7 @@ function renderAnimeCard(anime) {
         </div>
         <div class="anime-card-badges">
           <span class="badge badge-sub">${typeLabel}</span>
+          ${Boolean(anime.is_auto_discovered) ? `<span class="badge" style="background:rgba(16, 185, 129, 0.25);color:#34d399;border:1px solid rgba(16, 185, 129, 0.45);"><i class="fas fa-bolt"></i> DISCOVERED</span>` : ''}
           ${(anime.slug === 'spider-man-across-the-spider-verse' || (anime.duration && anime.duration.includes('4K'))) ? `<span class="badge" style="background:linear-gradient(135deg, #a855f7, #ec4899);color:#fff;font-weight:800;letter-spacing:0.5px;"><i class="fas fa-sparkles"></i> 4K UHD</span>` : ''}
           ${Boolean(anime.has_hindi_dub || HINDI_DUBBED_SLUGS.has(anime.slug)) ? `<span class="badge badge-hindi"><i class="fas fa-flag" style="font-size:0.65rem;"></i> HINDI DUB</span>` : ''}
           ${anime.episodes_count ? `<span class="badge badge-ep">${isAnyMovie ? (typeLabel === 'Anime Movie' ? 'ANIME FILM' : 'MOVIE') : `EP ${anime.episodes_count}`}</span>` : ''}
@@ -4641,9 +4642,10 @@ async function sendAiMessage(userText) {
 let adminUsersCache = [];
 let adminLoginsCache = [];
 let adminWatchesCache = [];
+let adminDiscoveryCache = null;
 let adminStatsCache = null;
 let adminTargetUser = null;
-let adminActiveTab = 'users'; // 'users' | 'logins' | 'watches'
+let adminActiveTab = 'users'; // 'users' | 'logins' | 'watches' | 'discovery'
 let adminUserFilter = 'all'; // 'all' | 'online' | 'today' | 'active' | 'admins'
 let adminAutoRefreshTimer = null;
 let adminAutoRefreshEnabled = true;
@@ -4796,17 +4798,19 @@ async function renderAdminPage() {
 
 async function fetchAdminData(isManual = false) {
   try {
-    const [statsRes, usersRes, loginsRes, watchesRes] = await Promise.all([
+    const [statsRes, usersRes, loginsRes, watchesRes, discoveryRes] = await Promise.all([
       api('/admin/stats'),
       api('/admin/users'),
       api('/admin/logins').catch(() => ({ data: [] })),
-      api('/admin/recent-watches').catch(() => ({ data: [] }))
+      api('/admin/recent-watches').catch(() => ({ data: [] })),
+      api('/admin/discovery').catch(() => ({ data: { enabled: true, totalDiscovered: 0, recentLogs: [] } }))
     ]);
 
     adminStatsCache = statsRes.data;
     adminUsersCache = usersRes.data || [];
     adminLoginsCache = loginsRes.data || [];
     adminWatchesCache = watchesRes.data || [];
+    adminDiscoveryCache = discoveryRes.data || { enabled: true, totalDiscovered: 0, recentLogs: [] };
 
     if (isManual) {
       showToast('Admin data refreshed with live database!', 'success');
@@ -4958,6 +4962,9 @@ function renderAdminDashboardContent() {
           <button class="admin-tab-btn ${adminActiveTab === 'watches' ? 'active' : ''}" id="tab-btn-watches" onclick="switchAdminTab('watches')">
             <i class="fas fa-play-circle"></i> Live Watch Stream (<span id="admin-watches-tab-count">${adminWatchesCache.length}</span>)
           </button>
+          <button class="admin-tab-btn ${adminActiveTab === 'discovery' ? 'active' : ''}" id="tab-btn-discovery" onclick="switchAdminTab('discovery')">
+            <i class="fas fa-radar"></i> Auto-Catalog Discovery (<span id="admin-discovery-tab-count">${adminDiscoveryCache?.totalDiscovered || 0}</span>)
+          </button>
         </div>
 
         <div style="position: relative; min-width: 280px; flex: 1; max-width: 400px;">
@@ -5080,6 +5087,127 @@ function renderAdminDashboardContent() {
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- TAB 4: AUTO-CATALOG DISCOVERY HUB -->
+      <div id="admin-view-discovery" style="${adminActiveTab === 'discovery' ? 'display:block;' : 'display:none;'}">
+        
+        <!-- Engine Status Hero Banner -->
+        <div class="admin-table-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 78, 59, 0.2)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 22px 26px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);">
+              <i class="fas fa-satellite-dish"></i>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 style="margin: 0; color: #fff; font-size: 1.25rem; font-weight: 800;">
+                  Auto-Catalog Discovery Engine
+                </h3>
+                <span class="badge" id="admin-discovery-status-badge" style="background: ${adminDiscoveryCache?.enabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}; color: ${adminDiscoveryCache?.enabled ? '#34d399' : '#f87171'}; border: 1px solid ${adminDiscoveryCache?.enabled ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}; font-weight: 700; font-size: 0.76rem;">
+                  <span class="status-pulse-dot" style="${adminDiscoveryCache?.enabled ? '' : 'background:#f87171; animation:none;'}"></span>
+                  ${adminDiscoveryCache?.enabled ? 'ACTIVE & OPERATIONAL' : 'PAUSED'}
+                </span>
+              </div>
+              <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 0.86rem;">
+                Dual-source auto-import: <strong style="color:#c084fc;">AniList GraphQL (Anime)</strong> · <strong style="color:#60a5fa;">TMDB Multi-Media API (Movies & Live Series)</strong> · Multi-CDN Video Embeds
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-sm ${adminDiscoveryCache?.enabled ? 'btn-outline' : 'btn-primary'}" onclick="toggleAdminDiscoveryEngine()" id="admin-toggle-discovery-btn">
+              <i class="fas fa-power-off"></i> ${adminDiscoveryCache?.enabled ? 'Pause Auto-Discovery' : 'Activate Auto-Discovery'}
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="triggerAdminBulkDiscovery()" id="admin-bulk-discovery-btn">
+              <i class="fas fa-cloud-arrow-down"></i> Sync Weekly Trending
+            </button>
+          </div>
+        </div>
+
+        <!-- 2 Grid Cards: Instant Manual Discovery Scanner & Discovery Engine Stats -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px;">
+          
+          <!-- Card 1: Instant Title Scanner -->
+          <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 6px 10px; border-radius: 8px; font-size: 0.95rem;"><i class="fas fa-bolt"></i></span>
+              <h4 style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 700;">Instant Title Scanner & Importer</h4>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.83rem; margin-top: 0; margin-bottom: 16px;">
+              Enter any movie, anime, or web series name. The engine will instantly fetch metadata, 4K artwork, duration, and stream sources.
+            </p>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <input type="text" id="admin-discovery-input" placeholder="e.g. Dune: Part Two, Reze Arc, Panchayat, The Vvaan..." style="flex: 1; padding: 11px 14px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-size: 0.88rem; outline: none;" onkeydown="if(event.key === 'Enter') triggerAdminDiscovery();">
+              <button class="btn btn-primary" onclick="triggerAdminDiscovery()" id="admin-discover-run-btn" style="white-space: nowrap;">
+                <i class="fas fa-magnifying-glass-plus"></i> Import
+              </button>
+            </div>
+            <div id="admin-discovery-result" style="display: none; margin-top: 14px;"></div>
+          </div>
+
+          <!-- Card 2: Discovery Overview & Stats -->
+          <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <span style="background: rgba(168, 85, 247, 0.15); color: #c084fc; padding: 6px 10px; border-radius: 8px; font-size: 0.95rem;"><i class="fas fa-chart-line"></i></span>
+              <h4 style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 700;">Auto-Catalog Growth Metrics</h4>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;">
+              <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Auto-Imported Titles</div>
+                <div style="font-size: 1.6rem; font-weight: 800; color: #34d399; margin-top: 4px;" id="admin-discovery-count-val">
+                  ${adminDiscoveryCache?.totalDiscovered || 0}
+                </div>
+              </div>
+              <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Discovery Events</div>
+                <div style="font-size: 1.6rem; font-weight: 800; color: #60a5fa; margin-top: 4px;">
+                  ${adminDiscoveryCache?.totalLogs || 0}
+                </div>
+              </div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.78rem; margin: 14px 0 0; line-height: 1.5;">
+              <i class="fas fa-circle-check" style="color:#10b981; margin-right: 4px;"></i>
+              Whenever any user searches for an unseeded title, the engine runs silently in sub-second time and auto-creates the movie/anime without interrupting user browsing.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Recent Discovery Audit Table -->
+        <div class="admin-table-card" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+          <div style="padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 style="margin:0; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-clock-rotate-left" style="color:#34d399;"></i> Real-Time Discovery Audit Logs
+              </h3>
+              <p style="margin:2px 0 0; font-size: 0.82rem; color: var(--text-muted);">
+                Chronological record of titles discovered from TMDB and AniList via user searches and background sync
+              </p>
+            </div>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.75rem;">
+              Live Synced
+            </span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.6px;">
+                  <th style="padding: 14px 20px;">Title & Artwork</th>
+                  <th style="padding: 14px 20px;">Type & Category</th>
+                  <th style="padding: 14px 20px;">Source Engine</th>
+                  <th style="padding: 14px 20px;">Trigger</th>
+                  <th style="padding: 14px 20px;">Discovered At</th>
+                  <th style="padding: 14px 20px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="admin-discovery-tbody">
+                ${renderAdminDiscoveryRows(adminDiscoveryCache?.recentLogs || [], currentSearch)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       <!-- Password Reset Modal -->
@@ -5451,20 +5579,24 @@ function switchAdminTab(tab) {
   const usersView = document.getElementById('admin-view-users');
   const loginsView = document.getElementById('admin-view-logins');
   const watchesView = document.getElementById('admin-view-watches');
+  const discoveryView = document.getElementById('admin-view-discovery');
   const chips = document.getElementById('admin-filter-chips');
 
   const btnUsers = document.getElementById('tab-btn-users');
   const btnLogins = document.getElementById('tab-btn-logins');
   const btnWatches = document.getElementById('tab-btn-watches');
+  const btnDiscovery = document.getElementById('tab-btn-discovery');
 
   if (usersView) usersView.style.display = tab === 'users' ? 'block' : 'none';
   if (loginsView) loginsView.style.display = tab === 'logins' ? 'block' : 'none';
   if (watchesView) watchesView.style.display = tab === 'watches' ? 'block' : 'none';
+  if (discoveryView) discoveryView.style.display = tab === 'discovery' ? 'block' : 'none';
   if (chips) chips.style.display = tab === 'users' ? 'flex' : 'none';
 
   if (btnUsers) btnUsers.classList.toggle('active', tab === 'users');
   if (btnLogins) btnLogins.classList.toggle('active', tab === 'logins');
   if (btnWatches) btnWatches.classList.toggle('active', tab === 'watches');
+  if (btnDiscovery) btnDiscovery.classList.toggle('active', tab === 'discovery');
 
   // Reapply current search filter to newly visible tab
   const searchInput = document.getElementById('admin-table-search');
@@ -5491,9 +5623,180 @@ function filterAdminCurrentTab(query) {
   } else if (adminActiveTab === 'logins') {
     const tbody = document.getElementById('admin-logins-tbody');
     if (tbody) tbody.innerHTML = renderAdminLoginsRows(adminLoginsCache, query);
-  } else {
+  } else if (adminActiveTab === 'watches') {
     const tbody = document.getElementById('admin-watches-tbody');
     if (tbody) tbody.innerHTML = renderAdminWatchesRows(adminWatchesCache, query);
+  } else if (adminActiveTab === 'discovery') {
+    const tbody = document.getElementById('admin-discovery-tbody');
+    if (tbody) tbody.innerHTML = renderAdminDiscoveryRows(adminDiscoveryCache?.recentLogs || [], query);
+  }
+}
+
+function renderAdminDiscoveryRows(logs, query = '') {
+  const q = (query || '').toLowerCase().trim();
+  const list = q ? logs.filter(l => 
+    (l.title && l.title.toLowerCase().includes(q)) ||
+    (l.slug && l.slug.toLowerCase().includes(q)) ||
+    (l.source && l.source.toLowerCase().includes(q))
+  ) : logs;
+
+  if (!list || list.length === 0) {
+    return `<tr><td colspan="6" style="padding: 36px; text-align: center; color: var(--text-muted);"><i class="fas fa-radar" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>No auto-discovery logs recorded yet. Search any movie/anime on the site to trigger discovery!</td></tr>`;
+  }
+
+  return list.map(l => {
+    const relTime = formatAdminRelativeTime(l.created_at);
+    const fullTime = formatAdminFullDate(l.created_at);
+    const isAniList = l.source === 'AniList';
+
+    const sourceBadge = isAniList
+      ? `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35);"><i class="fas fa-play" style="font-size:0.65rem;"></i> AniList</span>`
+      : `<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35);"><i class="fas fa-film" style="font-size:0.65rem;"></i> TMDB</span>`;
+
+    const triggerBadge = l.triggered_by === 'admin_manual'
+      ? `<span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.35);"><i class="fas fa-crown" style="font-size:0.65rem;"></i> Admin Manual</span>`
+      : (l.triggered_by === 'trending_cron'
+      ? `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35);"><i class="fas fa-cloud" style="font-size:0.65rem;"></i> Trending Auto</span>`
+      : `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.35);"><i class="fas fa-search" style="font-size:0.65rem;"></i> User Search</span>`);
+
+    return `
+      <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+        <td style="padding: 14px 20px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="${l.poster_image || '/images/no-cover.png'}" style="width: 36px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);" onerror="this.src='/images/no-cover.png'">
+            <div>
+              <a href="/anime/${l.slug}" onclick="navigateTo('/anime/${l.slug}'); return false;" style="font-weight: 700; color: #fff; font-size: 0.88rem; text-decoration: none; display: block;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'">
+                ${escapeHtml(l.title)}
+              </a>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">
+                ${escapeHtml(l.slug)}
+              </div>
+            </div>
+          </div>
+        </td>
+        <td style="padding: 14px 20px;">
+          <span class="badge" style="background: rgba(255,255,255,0.08); color: #e2e8f0; font-size: 0.75rem;">
+            ${l.type || 'Movie'} · ${(l.category || 'live_action').replace('_', ' ')}
+          </span>
+        </td>
+        <td style="padding: 14px 20px;">
+          ${sourceBadge}
+        </td>
+        <td style="padding: 14px 20px;">
+          ${triggerBadge}
+        </td>
+        <td style="padding: 14px 20px; white-space: nowrap;">
+          <div style="font-weight: 600; color: #fff; font-size: 0.84rem;">${relTime}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">${fullTime}</div>
+        </td>
+        <td style="padding: 14px 20px; text-align: right; white-space: nowrap;">
+          <a href="/anime/${l.slug}" onclick="navigateTo('/anime/${l.slug}'); return false;" class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">
+            <i class="fas fa-external-link-alt"></i> View
+          </a>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function triggerAdminDiscovery() {
+  const input = document.getElementById('admin-discovery-input');
+  const btn = document.getElementById('admin-discover-run-btn');
+  const resultBox = document.getElementById('admin-discovery-result');
+  const q = input?.value.trim();
+  if (!q) {
+    showToast('Please enter a title to discover', 'error');
+    input?.focus();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Searching...`;
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = `
+    <div style="padding: 16px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; text-align: center; color: var(--text-muted);">
+      <i class="fas fa-satellite-dish fa-spin" style="color:var(--accent); font-size: 1.4rem; margin-bottom: 8px; display: block;"></i>
+      Searching TMDB & AniList archives for "${escapeHtml(q)}"...
+    </div>
+  `;
+
+  try {
+    const res = await api('/admin/auto-discover', {
+      method: 'POST',
+      body: JSON.stringify({ query: q })
+    });
+
+    const item = res.data;
+    resultBox.innerHTML = `
+      <div style="padding: 14px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <img src="${item.cover_image || '/images/no-cover.png'}" style="width: 44px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border);" onerror="this.src='/images/no-cover.png'">
+          <div>
+            <div style="font-weight: 800; color: #fff; font-size: 0.95rem;">${escapeHtml(item.title)}</div>
+            <div style="font-size: 0.78rem; color: #34d399; margin-top: 2px;">
+              <i class="fas fa-check-circle"></i> Successfully Imported into Vault (${escapeHtml(item.source || 'TMDB')})
+            </div>
+          </div>
+        </div>
+        <a href="/anime/${item.slug}" onclick="navigateTo('/anime/${item.slug}'); return false;" class="btn btn-primary btn-sm">
+          <i class="fas fa-play"></i> Watch Now
+        </a>
+      </div>
+    `;
+    showToast(`Discovered & Imported: "${item.title}"!`, 'success');
+    input.value = '';
+    await fetchAdminData(false);
+  } catch (err) {
+    resultBox.innerHTML = `
+      <div style="padding: 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; color: #f87171; font-size: 0.88rem;">
+        <i class="fas fa-exclamation-circle" style="margin-right: 6px;"></i> ${escapeHtml(err.message)}
+      </div>
+    `;
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-magnifying-glass-plus"></i> Import`;
+  }
+}
+
+async function triggerAdminBulkDiscovery() {
+  const btn = document.getElementById('admin-bulk-discovery-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Scanning Trending...`;
+  }
+  showToast('Scanning TMDB & AniList for top weekly trending titles...', 'info');
+
+  try {
+    const res = await api('/admin/bulk-discover', {
+      method: 'POST',
+      body: JSON.stringify({ limit: 20 })
+    });
+    showToast(res.message || 'Bulk trending discovery completed!', 'success');
+    await fetchAdminData(false);
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fas fa-cloud-arrow-down"></i> Sync Weekly Trending`;
+    }
+  }
+}
+
+async function toggleAdminDiscoveryEngine() {
+  if (!adminDiscoveryCache) return;
+  const newStatus = !adminDiscoveryCache.enabled;
+  try {
+    const res = await api('/admin/discovery-settings', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: newStatus })
+    });
+    adminDiscoveryCache.enabled = res.enabled;
+    showToast(res.message, res.enabled ? 'success' : 'info');
+    renderAdminDashboardContent();
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
