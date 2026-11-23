@@ -364,7 +364,7 @@ function handleRoute() {
   window.scrollTo(0, 0);
 }
 
-// ===== HINDI DUBBED ANIME REGISTRY =====
+// ===== HINDI DUBBED ANIME & CINEMA REGISTRY =====
 const HINDI_DUBBED_SLUGS = new Set([
   'naruto', 'naruto-classic', 'naruto-shippuden', 'dragon-ball', 'dragon-ball-z', 'dragon-ball-super', 'dragon-ball-daima',
   'fairy-tail', 'fairy-tail-hindi', 'demon-slayer', 'demon-slayer-mugen-train',
@@ -374,8 +374,49 @@ const HINDI_DUBBED_SLUGS = new Set([
   'dr-stone', 'vinland-saga', 'vinland-saga-season-2', 'hells-paradise',
   'classroom-of-the-elite', 'delicious-in-dungeon', 'shangri-la-frontier',
   'blue-lock', 'mashle', 'wind-breaker', 'the-apothecary-diaries', 'ranma-1-2-2024',
-  'blue-box', 'pluto', 'tower-of-god', 'beyblade', 'ben-10-alien-force', 'hunter-x-hunter', 'tokyo-ghoul'
+  'blue-box', 'pluto', 'tower-of-god', 'beyblade', 'ben-10-alien-force', 'hunter-x-hunter', 'tokyo-ghoul',
+  'your-name', 'suzume', 'weathering-with-you', 'spirited-away', 'howls-moving-castle', 'a-silent-voice',
+  'jujutsu-kaisen-0', 'dragon-ball-super-super-hero', 'dragon-ball-super-broly',
+  'avengers-endgame', 'avengers-infinity-war', 'the-dark-knight', 'inception', 'interstellar',
+  'deadpool-wolverine', 'avatar-the-way-of-water', 'dune-part-two', 'oppenheimer', 'spider-man-no-way-home',
+  '3-idiots', 'dangal', 'sholay', 'jawan', 'pathaan', 'stree-2', 'kalki-2898-ad', 'rrr',
+  'kgf-chapter-2', 'pushpa-the-rise', 'pushpa-2-the-rule', 'salaar', 'baahubali-2-the-conclusion',
+  'scam-1992', 'mirzapur', 'sacred-games', 'panchayat', 'the-family-man', 'farzi', 'the-great-indian-kapil-show',
+  'squid-game', 'all-of-us-are-dead', 'the-glory', 'crash-landing-on-you', 'vincenzo', 'queen-of-tears',
+  'the-vvaan-force-of-the-forrest-2026'
 ]);
+
+const INDIAN_STUDIOS = [
+  'bollywood', 'yash raj', 'dharma', 't-series', 'red chillies', 'excel entertainment',
+  'nadiadwala', 'maddock', 'phantom films', 'balaji', 'aamir khan', 'eros', 'utv',
+  'hombale', 'mythri', 'geetha arts', 'arka media', 'vyjayanthi', 'sun pictures',
+  'lyca', 'zee studios', 'junglee', 'reliance entertainment', 'svf', 'cinema motion'
+];
+
+const INDIAN_SLUGS = new Set([
+  '3-idiots', 'dangal', 'sholay', 'jawan', 'pathaan', 'stree-2', 'kalki-2898-ad', 'rrr',
+  'kgf-chapter-1', 'kgf-chapter-2', 'pushpa-the-rise', 'pushpa-2-the-rule', 'salaar',
+  'baahubali-the-beginning', 'baahubali-2-the-conclusion', 'animal', 'rockstar', 'queen',
+  'chhappan-chhuriyan', 'brahmastra', 'fighter', 'war', 'kabir-singh', 'drishyam', 'drishyam-2',
+  'munna-bhai-mbbs', 'lage-raho-munna-bhai', 'pk', 'bajrangi-bhaijaan', 'sultan', 'tiger-3',
+  'gadar-2', 'om-shanti-om', 'chennai-express', 'dilwale-dulhania-le-jayenge', 'lagaan',
+  'swades', 'chak-de-india', 'taare-zameen-par', 'barfi', 'zindagi-na-milegi-dobara',
+  'scam-1992', 'scam-2003-the-telgi-story', 'mirzapur', 'sacred-games', 'panchayat',
+  'the-family-man', 'farzi', 'paatal-lok', 'kota-factory', 'asur', 'gullak', 'delhi-crime',
+  'guns-and-gulaabs', 'taaza-khabar', 'special-ops', 'the-great-indian-kapil-show',
+  'indias-got-latent-samay-raina', 'rocket-boys', 'breathe', 'kaala-paani', 'kohrra',
+  'scoop', 'aspirants', 'yeh-meri-family', 'jamtara', 'the-vvaan-force-of-the-forrest-2026'
+]);
+
+function isIndianTitle(ep) {
+  if (!ep) return false;
+  const slug = ep.anime_slug || '';
+  if (INDIAN_SLUGS.has(slug) || slug.includes('vvaan') || slug.includes('kapil') || slug.includes('latent') || slug.includes('scam') || slug.includes('mirzapur')) return true;
+  const studio = (ep.studio || '').toLowerCase();
+  if (INDIAN_STUDIOS.some(s => studio.includes(s))) return true;
+  if (ep.audio_language === 'Hindi') return true;
+  return false;
+}
 
 // Vault Toons Hindi Dub provider slugs & officially dubbed batch limits
 const TOONS_HINDI_SLUGS = new Set([
@@ -466,11 +507,16 @@ const ANIME_SERVERS = [
     name: 'VidLink PRO',
     badge: 'SMOOTH HD',
     provider: 'VidLink Pro Ultra HD',
-    audio: ['sub', 'dub'],
-    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ anilistId, malId, tmdbId, episode, season, isMovie, audio }) => {
+      const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : '';
       if (isMovie) {
         const id = tmdbId || 37854;
-        return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
+        return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
+      }
+      if (tmdbId && audio === 'hindi') {
+        const s = season || 1;
+        return `https://vidlink.pro/tv/${tmdbId}/${s}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = anilistId ? 'ani' : 'mal';
@@ -512,8 +558,21 @@ const ANIME_SERVERS = [
 // Web Series & Movies TMDB streaming providers (Clean, Fast, 4K UHD, Zero Adult Popups)
 const WEBSERIES_SERVERS = [
   {
+    id: 'hindi-multi-uhd',
+    name: 'Server 1 (Hindi Dub 4K)',
+    badge: '🇮🇳 4K HINDI',
+    provider: 'VidLink Multi-Audio Ultra HD (Hindi Default)',
+    audio: ['hindi', 'dub', 'sub'],
+    build: ({ tmdbId, season, episode, isMovie, audio }) => {
+      const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : (audio === 'sub' ? '&multi=true' : '');
+      return isMovie
+        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`
+        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
+    }
+  },
+  {
     id: 'vidcore-tv',
-    name: 'Server 1 (4K UHD)',
+    name: 'Server 2 (4K UHD)',
     badge: '4K UHD',
     provider: 'VidCore Ultra HD',
     audio: ['sub', 'dub'],
@@ -524,7 +583,7 @@ const WEBSERIES_SERVERS = [
   },
   {
     id: 'autoembed-direct',
-    name: 'Server 2 (PRO)',
+    name: 'Server 3 (PRO)',
     badge: 'UHD PRO',
     provider: 'AutoEmbed Direct',
     audio: ['sub', 'dub'],
@@ -534,19 +593,19 @@ const WEBSERIES_SERVERS = [
         : `https://player.autoembed.me/embed/tv/${tmdbId}/${season}/${episode}/`
   },
   {
-    id: 'vidlink-tv',
-    name: 'Server 3 (2K HD)',
-    badge: '2K HD',
-    provider: 'VidLink Pro Ultra',
-    audio: ['sub', 'dub'],
+    id: '2embed-skin',
+    name: 'Server 4 (Multi-Audio)',
+    badge: 'MULTI-AUDIO',
+    provider: '2Embed Ultra HD Multi-Audio',
+    audio: ['hindi', 'dub', 'sub'],
     build: ({ tmdbId, season, episode, isMovie }) =>
       isMovie
-        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6`
-        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8b5cf6`
+        ? `https://www.2embed.skin/movie/${tmdbId}`
+        : `https://www.2embed.skin/tv/${tmdbId}&s=${season}&e=${episode}`
   },
   {
     id: '2embed-cc',
-    name: 'Server 4 (FAST)',
+    name: 'Server 5 (FAST)',
     badge: 'FAST STREAM',
     provider: '2Embed Global Stream',
     audio: ['sub', 'dub'],
@@ -556,15 +615,15 @@ const WEBSERIES_SERVERS = [
         : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`
   },
   {
-    id: '2embed-skin',
-    name: 'Server 5 (ALT HD)',
-    badge: 'MULTI-AUDIO',
-    provider: '2Embed Ultra HD',
+    id: 'vidlink-tv',
+    name: 'Server 6 (2K HD)',
+    badge: '2K HD',
+    provider: 'VidLink Pro Ultra',
     audio: ['sub', 'dub'],
     build: ({ tmdbId, season, episode, isMovie }) =>
       isMovie
-        ? `https://www.2embed.skin/movie/${tmdbId}`
-        : `https://www.2embed.skin/tv/${tmdbId}&s=${season}&e=${episode}`
+        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6`
+        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8b5cf6`
   }
 ];
 
@@ -2396,7 +2455,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
         else { season = 8; episode = n - 67; }
       }
 
-      url = s.build({ tmdbId: targetTmdb, season, episode, isMovie: isLiveMovie });
+      url = s.build({ tmdbId: targetTmdb, season, episode, isMovie: isLiveMovie, audio });
     } else {
       let anilistId = ep.anilist_id || (ep.anime_slug === 'one-piece' ? 21 : null);
       let malId = ep.mal_id || (ep.anime_slug === 'one-piece' ? 21 : null);
@@ -2655,7 +2714,11 @@ function renderWatchAudioSelector() {
   if (!container || !watchState.ep) return;
 
   const isOfficial = watchState.selectedServer === 'official';
-  const isWebSeries = watchState.ep.anime_type === 'ONA';
+  const isKapilShow = watchState.ep.anime_slug === 'the-great-indian-kapil-show';
+  const isAnime = watchState.ep.category === 'anime' || Boolean(watchState.ep.anilist_id);
+  const isLiveMovie = (watchState.ep.category === 'live_action' || (watchState.ep.anime_type === 'Movie' && !watchState.ep.anilist_id)) && !isAnime;
+  const isWebSeries = !isAnime && (watchState.ep.category === 'series' || watchState.ep.category === 'kdrama' || watchState.ep.category === 'cdrama' || watchState.ep.category === 'drama' || isKapilShow || watchState.ep.anime_type === 'ONA');
+  const isIndian = isIndianTitle(watchState.ep);
 
   if (isOfficial) {
     const isHindi = watchState.ep.audio_language === 'Hindi';
@@ -2671,13 +2734,42 @@ function renderWatchAudioSelector() {
         </span>
       </div>
     `;
-  } else if (isWebSeries) {
+  } else if (isIndian) {
     container.innerHTML = `
       <span class="selector-label"><i class="fas fa-volume-high"></i> Audio:</span>
       <div class="audio-btn-group">
-        <span class="audio-chip-btn active">
-          <i class="fas fa-globe"></i> Original Multi-Language Audio
-        </span>
+        <button class="audio-chip-btn hindi-chip-btn ${watchState.audio === 'hindi' ? 'active' : ''}" data-audio="hindi" onclick="setWatchAudio('hindi')" title="Play in Original Hindi Master Audio">
+          <i class="fas fa-flag"></i> HINDI (Original Audio 🇮🇳)
+        </button>
+        <button class="audio-chip-btn ${watchState.audio === 'dub' ? 'active' : ''}" data-audio="dub" onclick="setWatchAudio('dub')" title="Play in English or Multi-Audio Track">
+          <i class="fas fa-microphone"></i> DUB (English / Multi)
+        </button>
+        <button class="audio-chip-btn ${watchState.audio === 'sub' ? 'active' : ''}" data-audio="sub" onclick="setWatchAudio('sub')" title="Play with English Subtitles">
+          <i class="fas fa-closed-captioning"></i> SUB (English Subtitles)
+        </button>
+      </div>
+    `;
+  } else if (isWebSeries || isLiveMovie) {
+    const hasHindi = Boolean(
+      watchState.ep.has_hindi_dub ||
+      watchState.ep.audio_language === 'Hindi' ||
+      HINDI_DUBBED_SLUGS.has(watchState.ep.anime_slug)
+    );
+
+    container.innerHTML = `
+      <span class="selector-label"><i class="fas fa-volume-high"></i> Audio:</span>
+      <div class="audio-btn-group">
+        ${hasHindi ? `
+        <button class="audio-chip-btn hindi-chip-btn ${watchState.audio === 'hindi' ? 'active' : ''}" data-audio="hindi" onclick="setWatchAudio('hindi')" title="Play in 4K Ultra HD Hindi Dub">
+          <i class="fas fa-flag"></i> HINDI (Hindi Dub 🇮🇳 4K)
+        </button>
+        ` : ''}
+        <button class="audio-chip-btn ${watchState.audio === 'dub' ? 'active' : ''}" data-audio="dub" onclick="setWatchAudio('dub')" title="Play in English Audio">
+          <i class="fas fa-microphone"></i> DUB (English Audio)
+        </button>
+        <button class="audio-chip-btn ${watchState.audio === 'sub' ? 'active' : ''}" data-audio="sub" onclick="setWatchAudio('sub')" title="Play in Original Audio with Multi-Subtitles">
+          <i class="fas fa-closed-captioning"></i> SUB (Original / Subtitles)
+        </button>
       </div>
     `;
   } else {
@@ -2690,10 +2782,10 @@ function renderWatchAudioSelector() {
     container.innerHTML = `
       <span class="selector-label"><i class="fas fa-volume-high"></i> Audio:</span>
       <div class="audio-btn-group">
-        <button class="audio-chip-btn ${watchState.audio === 'sub' ? 'active' : ''}" data-audio="sub" onclick="setWatchAudio('sub')">
-          <i class="fas fa-closed-captioning"></i> SUB (Japanese Audio)
+        <button class="audio-chip-btn ${watchState.audio === 'sub' ? 'active' : ''}" data-audio="sub" onclick="setWatchAudio('sub')" title="Japanese Audio with English Subtitles">
+          <i class="fas fa-closed-captioning"></i> SUB (Japanese Audio + Sub)
         </button>
-        <button class="audio-chip-btn ${watchState.audio === 'dub' ? 'active' : ''}" data-audio="dub" onclick="setWatchAudio('dub')">
+        <button class="audio-chip-btn ${watchState.audio === 'dub' ? 'active' : ''}" data-audio="dub" onclick="setWatchAudio('dub')" title="English Dub Audio">
           <i class="fas fa-microphone"></i> DUB (English Dub)
         </button>
         ${hasHindi ? `
@@ -2726,10 +2818,10 @@ window.setWatchServer = function(serverId) {
   if (serverId !== 'official' && serverId !== 'hindi-toons') {
     localStorage.setItem(isWebSeries ? 'webseries_server' : 'anime_server', serverId);
   }
-  if (serverId === 'hindi-toons') {
+  if (serverId === 'hindi-toons' || serverId === 'hindi-multi-uhd') {
     watchState.audio = 'hindi';
     localStorage.setItem('anime_audio', 'hindi');
-  } else if (watchState.audio === 'hindi') {
+  } else if (watchState.audio === 'hindi' && serverId !== 'vidlink-anime' && serverId !== '2embed-skin') {
     watchState.audio = 'dub';
     localStorage.setItem('anime_audio', 'dub');
   }
@@ -2740,13 +2832,15 @@ window.setWatchServer = function(serverId) {
   const noticeText = document.getElementById('server-notice-text');
   if (noticeText && watchState.ep) {
     if (serverId === 'official') {
-      noticeText.textContent = `Official stream published by ${watchState.ep.source_name || 'verified partner'}. Audio: ${watchState.ep.audio_language || 'Original'}. Switch to Server 1-5 for multi-server playback.`;
+      noticeText.textContent = `Official stream published by ${watchState.ep.source_name || 'verified partner'}. Audio: ${watchState.ep.audio_language || 'Original'}. Switch to Server 1-6 for multi-server playback.`;
     } else if (serverId === 'hindi-toons') {
       noticeText.textContent = 'Streaming via Vault Toons Ultra Hindi Dub (Multi-Server HD). Includes RubyStream 1080p, FilesForever HD & Google Drive mirrors.';
+    } else if (serverId === 'hindi-multi-uhd') {
+      noticeText.textContent = 'Streaming via Server 1 (Hindi Dub 4K UHD). Multi-audio master stream with Hindi Audio track priority. Zero popups active.';
     } else if (isWebSeries) {
-      noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidsrc HD, Server 2: VidLink Pro, Server 3: Vidsrc CC, Server 4: 2Embed TV). If one server is slow or unavailable, switch servers anytime.';
+      noticeText.textContent = 'Streaming via verified multi-provider 4K HD feeds (Server 1: Hindi Dub 4K, Server 2: VidCore 4K UHD, Server 3: AutoEmbed PRO, Server 4: 2Embed Multi-Audio). Switch servers anytime.';
     } else {
-      noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidstream HD, Server 2: MegaCloud HD, Server 3: VidLink PRO, Server 4: 2Embed, Server 5: AnimeStream). Switch servers or SUB/DUB/HINDI anytime.';
+      noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidstream HD, Server 2: MegaCloud HD, Server 3: VidLink PRO 4K, Server 4: 2Embed, Server 5: AnimeStream). Switch servers or SUB/DUB/HINDI anytime.';
     }
   }
   const tipBanner = document.querySelector('.stream-tip-banner strong');
@@ -2768,8 +2862,19 @@ window.setWatchAudio = function(audioMode) {
   document.querySelectorAll('.audio-chip-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.audio === audioMode);
   });
+
+  const isKapilShow = watchState.ep?.anime_slug === 'the-great-indian-kapil-show';
+  const isAnime = watchState.ep?.category === 'anime' || Boolean(watchState.ep?.anilist_id);
+  const isLiveMovie = (watchState.ep?.category === 'live_action' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id)) && !isAnime;
+  const isWebSeries = !isAnime && (watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || isKapilShow || watchState.ep?.anime_type === 'ONA');
+  const isWebSeriesOrLive = isWebSeries || isLiveMovie;
+
   if (audioMode === 'hindi') {
-    showToast('🇮🇳 Hindi Dub track selected! Loading HD Hindi Dub stream.', 'success');
+    showToast('🇮🇳 Hindi Dub selected! Loading Ultra HD 4K/1080p stream.', 'success');
+    if (isWebSeriesOrLive) {
+      setWatchServer('hindi-multi-uhd');
+      return;
+    }
     const slug = watchState.ep?.anime_slug;
     const isToonsHindi = TOONS_HINDI_SLUGS.has(slug);
     if (isToonsHindi) {
@@ -2783,8 +2888,19 @@ window.setWatchAudio = function(audioMode) {
         setWatchServer('vidlink-anime');
         return;
       }
+    } else if (watchState.ep?.tmdb_id) {
+      setWatchServer('vidlink-anime');
+      return;
+    }
+  } else if (audioMode === 'sub') {
+    showToast('💬 SUB Track: Japanese/Original Audio with English Subtitles.', 'info');
+    if (watchState.selectedServer === 'hindi-toons') {
+      const isHighEp = (watchState.ep?.anime_slug === 'naruto-shippuden' && (Number(watchState.ep?.number) || 1) > 150);
+      setWatchServer(isHighEp ? 'vidlink-anime' : 'animeembed');
+      return;
     }
   } else {
+    showToast('🎙️ DUB Track: English Audio (Subtitles are turned off in Dub by provider).', 'info');
     if (watchState.selectedServer === 'hindi-toons') {
       const isHighEp = (watchState.ep?.anime_slug === 'naruto-shippuden' && (Number(watchState.ep?.number) || 1) > 150);
       setWatchServer(isHighEp ? 'vidlink-anime' : 'animeembed');
@@ -3069,8 +3185,18 @@ async function renderWatchPage(episodeId) {
       watchState.selectedServer = 'official';
     } else if (isWebSeriesOrLive) {
       const stored = localStorage.getItem('webseries_server');
-      const validWs = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
-      watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'vidcore-tv';
+      const validWs = ['hindi-multi-uhd', 'vidcore-tv', 'autoembed-direct', '2embed-skin', '2embed-cc', 'vidlink-tv'];
+      const storedAudio = localStorage.getItem('anime_audio');
+      const isIndian = isIndianTitle(ep);
+      const hasHindi = Boolean(ep.has_hindi_dub || HINDI_DUBBED_SLUGS.has(ep.anime_slug) || isIndian);
+
+      if (isIndian || storedAudio === 'hindi') {
+        watchState.audio = 'hindi';
+        watchState.selectedServer = 'hindi-multi-uhd';
+      } else {
+        watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : (hasHindi ? 'hindi-multi-uhd' : 'vidcore-tv');
+        if (storedAudio) watchState.audio = storedAudio;
+      }
     } else {
       if (hasToonsHindi) {
         // Within active Hindi Dub batch (e.g. Tokyo Revengers ep 1-24, Naruto Shippuden ep 1-32)
@@ -3093,9 +3219,15 @@ async function renderWatchPage(episodeId) {
           watchState.audio = 'dub';
         }
       } else {
-        const stored = localStorage.getItem('anime_server');
-        const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+        const storedAudio = localStorage.getItem('anime_audio');
+        if (storedAudio === 'hindi' && (ep.has_hindi_dub || HINDI_DUBBED_SLUGS.has(ep.anime_slug))) {
+          watchState.audio = 'hindi';
+          watchState.selectedServer = ep.tmdb_id ? 'vidlink-anime' : 'animeembed';
+        } else {
+          const stored = localStorage.getItem('anime_server');
+          const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+        }
       }
     }
 
@@ -3145,7 +3277,7 @@ async function renderWatchPage(episodeId) {
           <i class="fas fa-circle-info" aria-hidden="true"></i>
           <div>
             <strong>Multi-Server HD Streaming Active</strong>
-            <p>${isWebSeries ? 'Streaming from verified multi-provider 4K HD feeds (VidCore Ultra HD, AutoEmbed Direct, VidLink Pro, 2Embed HD). Ad-Free Shield enabled.' : 'Streaming from verified multi-provider HD feeds (Vidstream Ultra HD, MegaCloud HD, VidLink PRO, 2Embed, AnimeStream). Ad-Free Shield enabled.'}</p>
+            <p>${isWebSeries ? 'Streaming from verified 4K UHD feeds with Multi-Audio & Hindi Dub (VidLink 4K Hindi, VidCore 4K UHD, AutoEmbed PRO, 2Embed Multi-Audio). Safe Shield Zero-Ad active.' : 'Streaming from verified multi-provider HD feeds (Vidstream Ultra HD, MegaCloud HD, VidLink PRO 4K, 2Embed, AnimeStream). Safe Shield Zero-Ad active.'}</p>
           </div>
         </div>`)));
 
