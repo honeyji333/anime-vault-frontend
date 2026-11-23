@@ -439,25 +439,26 @@ const ANIME_SERVERS = [
     id: 'animeembed',
     name: 'Vidstream',
     badge: 'FAST HD',
-    provider: 'Vidstream Ultra HD',
+    provider: 'Vidstream Ultra HD (Zero-Ad Proxy)',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      if (anilistId) {
-        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
-      }
-      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      const type = anilistId ? 'ani' : 'mal';
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: 'animeembed-mal',
     name: 'MegaCloud',
     badge: 'STABLE HD',
-    provider: 'MegaCloud Engine',
+    provider: 'MegaCloud Engine (Zero-Ad Proxy)',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      const type = malId ? 'mal' : 'ani';
+      const id = malId || anilistId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -472,10 +473,9 @@ const ANIME_SERVERS = [
         return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
-      if (anilistId) {
-        return `https://animeembed.com/embed/ani/${anilistId}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
-      }
-      return `https://animeembed.com/embed/mal/${malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      const type = anilistId ? 'ani' : 'mal';
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -490,18 +490,21 @@ const ANIME_SERVERS = [
         return `https://www.2embed.cc/embed/${id}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
-      return `https://animeembed.com/embed/mal/${malId || anilistId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      const type = malId ? 'mal' : 'ani';
+      const id = malId || anilistId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: 'animeembed-mirror',
     name: 'AnimeStream',
     badge: 'UHD PRO',
-    provider: 'AnimeStream Mirror HD',
+    provider: 'AnimeStream Mirror HD (Zero-Ad Proxy)',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
-      return `https://animeembed.com/embed/ani/${anilistId || malId || 21}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=ani&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   }
 ];
@@ -2457,7 +2460,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
       url += `&start=${s}`;
     } else if (url.includes('vidlink.pro')) {
       url += `&start=${s}&t=${s}`;
-    } else if (url.includes('animeembed.com')) {
+    } else if (url.includes('animeembed.com') || url.includes('/api/player/embed')) {
       url += `&start=${s}`;
     } else {
       url += `${url.includes('?') ? '&' : '?'}start=${s}&t=${s}&time=${s}`;
@@ -2510,7 +2513,14 @@ function updateWatchIframe() {
   const url = buildStreamUrl(watchState.ep, watchState.selectedServer, watchState.audio, savedProg);
 
   const isOfficial = watchState.selectedServer === 'official';
-  frame.removeAttribute('sandbox');
+  const isInternal = url.startsWith('/api/');
+
+  if (isOfficial || isInternal) {
+    frame.removeAttribute('sandbox');
+  } else {
+    // Strictly sandbox external third-party scrapers to block any popups or top-level redirects
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
+  }
 
   if (isOfficial) {
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
@@ -3144,12 +3154,16 @@ async function renderWatchPage(episodeId) {
       : (isWebSeries && ep.season_number ? `Season ${ep.season_number} Episode ${ep.episode_in_season || ep.number}` : `Episode ${ep.number}`);
 
     const isOfficialServer = watchState.selectedServer === 'official';
+    const isInternalStream = streamUrl.startsWith('/api/');
     const iframeReferrerPolicy = isOfficialServer
       ? 'referrerpolicy="strict-origin-when-cross-origin"'
       : 'referrerpolicy="no-referrer-when-downgrade"';
     const iframeAllowAttr = isOfficialServer
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
       : 'allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; clipboard-write *"';
+    const iframeSandboxAttr = (!isOfficialServer && !isInternalStream)
+      ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads"'
+      : '';
 
     const seasonsList = ep.seasons || [];
     const moreSeasonsHtml = seasonsList.length > 1 ? `
@@ -3208,6 +3222,7 @@ async function renderWatchPage(episodeId) {
                 title="${ep.anime_title} ${epDisplayTitle}"
                 ${iframeAllowAttr}
                 ${iframeReferrerPolicy}
+                ${iframeSandboxAttr}
                 allowfullscreen>
               </iframe>
             </div>
@@ -3622,7 +3637,11 @@ async function renderWatchPage(episodeId) {
     const frame = document.getElementById('watch-iframe');
     const loader = document.getElementById('player-loader');
     if (frame) {
-      frame.removeAttribute('sandbox');
+      if (isInternalStream || isOfficialServer) {
+        frame.removeAttribute('sandbox');
+      } else {
+        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
+      }
       frame.onload = () => {
         if (loader) loader.classList.add('hidden');
       };

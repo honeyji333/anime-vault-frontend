@@ -40,7 +40,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css?v=7.4.0">
-  <!-- Top-Level Mobile & Desktop Zero-Popup & Anti-Nudity Immunity Shield -->
+  <!-- Top-Level Mobile & Desktop Zero-Popup & Anti-Redirect Immunity Shield -->
   <script>
     (function() {
       // 1. Strictly block any unauthorized window.open (no popups/popunders)
@@ -55,23 +55,51 @@
         return null;
       };
 
-      // 2. Anti-Nudity & 100% Family-Safe Link Interceptor (WhatsApp & Mobile Safe)
+      // 2. Intercept and block unauthorized top-level navigations / redirects (Chromium 102+)
+      if (window.navigation) {
+        window.navigation.addEventListener('navigate', function(e) {
+          if (e.destination && e.destination.url) {
+            try {
+              var dest = new URL(e.destination.url);
+              var isAllowed = dest.origin === window.location.origin ||
+                dest.hostname.includes('youtube.com') ||
+                dest.hostname.includes('google.com') ||
+                dest.hostname.includes('onrender.com');
+              if (!isAllowed) {
+                e.preventDefault();
+                console.warn('🛡️ [ZeroPopup Shield] Blocked rogue top-level redirect to:', e.destination.url);
+              }
+            } catch(err) {}
+          }
+        });
+      }
+
+      // 3. Universal Anti-Ad, Anti-Popup & Anti-Redirect Click Guard
       document.addEventListener('click', function(e) {
         var a = e.target && e.target.closest ? e.target.closest('a') : null;
         if (a && a.href) {
           var h = a.href.toLowerCase();
-          var isSelf = h.indexOf(window.location.hostname) !== -1 || h.indexOf('youtube.com') !== -1 || h.indexOf('dark-summoner') !== -1 || h.indexOf('/anime/') !== -1 || h.startsWith('/') || h.indexOf('/browse') !== -1;
-          if (!isSelf && (
-            h.includes('porn') || h.includes('sex') || h.includes('xhamster') || h.includes('xnxx') ||
-            h.includes('adult') || h.includes('casino') ||
-            h.includes('bet') || h.includes('xxx') || h.includes('strip') || h.includes('hookup') ||
-            h.includes('livejasmin') || h.includes('chaturbate') || h.includes('bongacams')
-          )) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            console.warn('🛡️ [Anti-Nudity Shield] Blocked adult link:', h);
-            return false;
+          var isSelf = h.indexOf(window.location.hostname) !== -1 ||
+            h.startsWith('/') ||
+            h.indexOf('/anime/') !== -1 ||
+            h.indexOf('/watch/') !== -1 ||
+            h.indexOf('/browse') !== -1 ||
+            h.indexOf('youtube.com') !== -1;
+          
+          if (!isSelf) {
+            if (a.target === '_blank' ||
+              h.includes('porn') || h.includes('sex') || h.includes('xhamster') || h.includes('xnxx') ||
+              h.includes('adult') || h.includes('casino') || h.includes('bet') || h.includes('xxx') ||
+              h.includes('strip') || h.includes('hookup') || h.includes('livejasmin') ||
+              h.includes('chaturbate') || h.includes('abscloud') || h.includes('adsterra') ||
+              h.includes('popcash') || h.includes('propeller') || h.includes('trafficjunky')
+            ) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              console.warn('🛡️ [ZeroPopup Shield] Blocked rogue external navigation/popup:', h);
+              return false;
+            }
           }
         }
       }, true);
@@ -568,7 +596,7 @@
   </aside>
   <div id="schedule-backdrop" class="schedule-backdrop" onclick="toggleScheduleDrawer(false)"></div>
 
-  <script src="/js/app.js?v=7.9.0"></script>
+  <script src="/js/app.js?v=8.0.0"></script>
   <script src="/js/seo.js?v=5.3.0"></script>
 </body>
 </html>
