@@ -370,7 +370,7 @@ const HINDI_DUBBED_SLUGS = new Set([
   'fairy-tail', 'fairy-tail-hindi', 'demon-slayer', 'demon-slayer-mugen-train',
   'jujutsu-kaisen', 'chainsaw-man', 'my-hero-academia', 'solo-leveling', 'solo-leveling-season-2',
   'spy-x-family', 'one-punch-man', 'attack-on-titan', 'death-note', 'tokyo-revengers',
-  'black-clover', 'kaiju-no-8', 'dan-da-dan', 'bleach-classic', 'bleach-tybw', 'bleach-tybw-part-3',
+  'black-clover-sword-of-the-wizard-king', 'kaiju-no-8', 'dan-da-dan', 'bleach-classic', 'bleach-tybw', 'bleach-tybw-part-3',
   'dr-stone', 'vinland-saga', 'vinland-saga-season-2', 'hells-paradise',
   'classroom-of-the-elite', 'delicious-in-dungeon', 'shangri-la-frontier',
   'blue-lock', 'mashle', 'wind-breaker', 'the-apothecary-diaries', 'ranma-1-2-2024',
@@ -508,15 +508,10 @@ const ANIME_SERVERS = [
     badge: 'SMOOTH HD',
     provider: 'VidLink Pro Ultra HD',
     audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, malId, tmdbId, episode, season, isMovie, audio }) => {
+    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
       const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : '';
-      if (isMovie) {
-        const id = tmdbId || 37854;
-        return `https://vidlink.pro/movie/${id}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
-      }
-      if (tmdbId && audio === 'hindi') {
-        const s = season || 1;
-        return `https://vidlink.pro/tv/${tmdbId}/${s}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
+      if (isMovie && tmdbId) {
+        return `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = anilistId ? 'ani' : 'mal';
@@ -3223,7 +3218,7 @@ async function renderWatchPage(episodeId) {
         const storedAudio = localStorage.getItem('anime_audio');
         if (storedAudio === 'hindi' && (ep.has_hindi_dub || HINDI_DUBBED_SLUGS.has(ep.anime_slug))) {
           watchState.audio = 'hindi';
-          watchState.selectedServer = ep.tmdb_id ? 'vidlink-anime' : 'animeembed';
+          watchState.selectedServer = (ep.anime_type === 'Movie' && ep.tmdb_id) ? 'vidlink-anime' : 'animeembed';
         } else {
           const stored = localStorage.getItem('anime_server');
           const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
