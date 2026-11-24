@@ -405,13 +405,14 @@ const INDIAN_SLUGS = new Set([
   'the-family-man', 'farzi', 'paatal-lok', 'kota-factory', 'asur', 'gullak', 'delhi-crime',
   'guns-and-gulaabs', 'taaza-khabar', 'special-ops', 'the-great-indian-kapil-show',
   'indias-got-latent-samay-raina', 'rocket-boys', 'breathe', 'kaala-paani', 'kohrra',
-  'scoop', 'aspirants', 'yeh-meri-family', 'jamtara', 'the-vvaan-force-of-the-forrest-2026'
+  'scoop', 'aspirants', 'yeh-meri-family', 'jamtara', 'the-vvaan-force-of-the-forrest-2026',
+  'dhindora', 'dhindora-season-2'
 ]);
 
 function isIndianTitle(ep) {
   if (!ep) return false;
   const slug = ep.anime_slug || '';
-  if (INDIAN_SLUGS.has(slug) || slug.includes('vvaan') || slug.includes('kapil') || slug.includes('latent') || slug.includes('scam') || slug.includes('mirzapur')) return true;
+  if (INDIAN_SLUGS.has(slug) || slug.includes('vvaan') || slug.includes('kapil') || slug.includes('latent') || slug.includes('scam') || slug.includes('mirzapur') || slug.includes('dhindora')) return true;
   const studio = (ep.studio || '').toLowerCase();
   if (INDIAN_STUDIOS.some(s => studio.includes(s))) return true;
   if (ep.audio_language === 'Hindi') return true;
@@ -2472,6 +2473,13 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
           anilistId = 6702;  // Fairy Tail Series 1 (2009)
           malId = 6702;
         }
+      }
+
+      // Multi-season continuous mapper for Black Clover Season 2 (Episodes 52-102 of Black Clover)
+      if (ep.anime_slug === 'black-clover-season-2') {
+        anilistId = 97940;
+        malId = 34572;
+        epNum = 51 + epNum;
       }
 
       const s = ANIME_SERVERS.find(item => item.id === serverId) || ANIME_SERVERS[0];
