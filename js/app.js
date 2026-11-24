@@ -2601,12 +2601,8 @@ function updateWatchIframe() {
   const isOfficial = watchState.selectedServer === 'official';
   const isInternal = url.startsWith('/api/');
 
-  if (isOfficial || isInternal) {
-    frame.removeAttribute('sandbox');
-  } else {
-    // Strictly sandbox external third-party scrapers to block any popups or top-level redirects
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
-  }
+  // Ensure sandbox attribute is never set on the player iframe (fixes "Please Disable Sandbox" on VidLink PRO)
+  frame.removeAttribute('sandbox');
 
   if (isOfficial) {
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
@@ -3327,9 +3323,7 @@ async function renderWatchPage(episodeId) {
     const iframeAllowAttr = isOfficialServer
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
       : 'allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; clipboard-write *"';
-    const iframeSandboxAttr = (!isOfficialServer && !isInternalStream)
-      ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads"'
-      : '';
+    const iframeSandboxAttr = '';
 
     const seasonsList = ep.seasons || [];
     const moreSeasonsHtml = seasonsList.length > 1 ? `
@@ -3803,11 +3797,7 @@ async function renderWatchPage(episodeId) {
     const frame = document.getElementById('watch-iframe');
     const loader = document.getElementById('player-loader');
     if (frame) {
-      if (isInternalStream || isOfficialServer) {
-        frame.removeAttribute('sandbox');
-      } else {
-        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
-      }
+      frame.removeAttribute('sandbox');
       frame.onload = () => {
         if (loader) loader.classList.add('hidden');
       };
