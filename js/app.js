@@ -3159,7 +3159,8 @@ async function renderWatchPage(episodeId) {
     const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id)) && !isAnime;
     const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
-    const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
+    const isYtWebSeries = ep.anime_slug === 'pokemon-hisuian-snow' || ep.anime_slug === 'pokemon-paldean-winds' || ep.anime_slug === 'fairy-tail-hindi';
+    const officialVideoId = (isKapilShow || (isAnime && !isYtWebSeries)) ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
     
     const epNum = Number(ep.number) || 1;
     const isToonsHindi = TOONS_HINDI_SLUGS.has(ep.anime_slug);
