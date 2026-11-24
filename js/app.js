@@ -478,10 +478,79 @@ const ANIME_SERVERS = [
     }
   },
   {
+    id: 'vidlink-anime',
+    name: 'VidLink PRO',
+    badge: '4K UHD',
+    provider: 'VidLink Pro Ultra HD (Multi-Audio)',
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie, audio }) => {
+      const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : '';
+      if (tmdbId) {
+        return isMovie
+          ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`
+          : `https://vidlink.pro/tv/${tmdbId}/${season || 1}/${tmdbEpisode || episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
+      }
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      const type = anilistId ? 'ani' : 'mal';
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+    }
+  },
+  {
+    id: 'vidcore-anime',
+    name: 'VidCore 4K',
+    badge: 'STABLE HD',
+    provider: 'VidCore Ultra HD',
+    audio: ['sub', 'dub'],
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie }) => {
+      if (tmdbId) {
+        return isMovie
+          ? `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`
+          : `https://vidcore.org/embed/tv/${tmdbId}/${season || 1}/${tmdbEpisode || episode}?theme=8b5cf6`;
+      }
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=ani&id=${id}&ep=${episode}&accent=8b5cf6&autoSkip=1`;
+    }
+  },
+  {
+    id: 'autoembed-anime',
+    name: 'AutoEmbed',
+    badge: 'UHD PRO',
+    provider: 'AutoEmbed Direct Global',
+    audio: ['sub', 'dub'],
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie }) => {
+      if (tmdbId) {
+        return isMovie
+          ? `https://player.autoembed.me/embed/movie/${tmdbId}`
+          : `https://player.autoembed.me/embed/tv/${tmdbId}/${season || 1}/${tmdbEpisode || episode}/`;
+      }
+      const id = anilistId || malId || 21;
+      return `/api/player/embed?type=ani&id=${id}&ep=${episode}&accent=8b5cf6&autoSkip=1`;
+    }
+  },
+  {
+    id: 'two-embed',
+    name: '2Embed',
+    badge: 'MULTI-CDN',
+    provider: '2Embed Global Stream',
+    audio: ['sub', 'dub'],
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie, audio }) => {
+      if (tmdbId) {
+        return isMovie
+          ? `https://www.2embed.cc/embed/${tmdbId}`
+          : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${tmdbEpisode || episode}`;
+      }
+      const track = audio === 'sub' ? 'sub' : 'dub';
+      const type = malId ? 'mal' : 'ani';
+      const id = malId || anilistId || 21;
+      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+    }
+  },
+  {
     id: 'animeembed',
     name: 'Vidstream',
     badge: 'FAST HD',
-    provider: 'Vidstream Ultra HD (Zero-Ad Proxy)',
+    provider: 'Vidstream Zero-Ad Proxy',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
@@ -493,60 +562,14 @@ const ANIME_SERVERS = [
   {
     id: 'animeembed-mal',
     name: 'MegaCloud',
-    badge: 'STABLE HD',
-    provider: 'MegaCloud Engine (Zero-Ad Proxy)',
+    badge: 'MIRROR',
+    provider: 'MegaCloud Zero-Ad Proxy',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = malId ? 'mal' : 'ani';
       const id = malId || anilistId || 21;
       return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
-    }
-  },
-  {
-    id: 'vidlink-anime',
-    name: 'VidLink PRO',
-    badge: 'SMOOTH HD',
-    provider: 'VidLink Pro Ultra HD',
-    audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
-      const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : '';
-      if (isMovie && tmdbId) {
-        return `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
-      }
-      const track = audio === 'sub' ? 'sub' : 'dub';
-      const type = anilistId ? 'ani' : 'mal';
-      const id = anilistId || malId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
-    }
-  },
-  {
-    id: 'two-embed',
-    name: '2Embed',
-    badge: 'MULTI-CDN',
-    provider: '2Embed Global Stream',
-    audio: ['sub', 'dub'],
-    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
-      if (isMovie) {
-        const id = tmdbId || 37854;
-        return `https://www.2embed.cc/embed/${id}`;
-      }
-      const track = audio === 'sub' ? 'sub' : 'dub';
-      const type = malId ? 'mal' : 'ani';
-      const id = malId || anilistId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
-    }
-  },
-  {
-    id: 'animeembed-mirror',
-    name: 'AnimeStream',
-    badge: 'UHD PRO',
-    provider: 'AnimeStream Mirror HD (Zero-Ad Proxy)',
-    audio: ['sub', 'dub'],
-    build: ({ anilistId, malId, episode, audio }) => {
-      const track = audio === 'sub' ? 'sub' : 'dub';
-      const id = anilistId || malId || 21;
-      return `/api/player/embed?type=ani&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   }
 ];
@@ -2479,6 +2502,7 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
       if (ep.anime_slug === 'black-clover-season-2') {
         anilistId = 97940;
         malId = 34572;
+        tmdbId = 73223;
         epNum = 51 + epNum;
       }
 
@@ -2500,8 +2524,9 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
           anilistId,
           malId,
           tmdbId,
-          episode: (s.id === 'vidlink-anime' || s.id === 'two-embed') && isMovie ? tmdbEpisode : epNum,
-          season: tmdbSeason,
+          episode: epNum,
+          tmdbEpisode: tmdbEpisode || epNum,
+          season: tmdbSeason || 1,
           audio,
           animeTitle,
           animeSlug: ep.anime_slug,
@@ -3217,8 +3242,10 @@ async function renderWatchPage(episodeId) {
         // High episodes where Hindi Dub batch ends (e.g. Naruto Shippuden ep 300)
         // Auto-route to Vidstream (animeembed) with English Dub/Sub
         const stored = localStorage.getItem('anime_server');
-        const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+        const validAn = ['hindi-toons', 'vidlink-anime', 'vidcore-anime', 'autoembed-anime', 'two-embed', 'animeembed', 'animeembed-mal'];
+        const isBc = ep.anime_slug === 'black-clover-season-2' || ep.anime_slug === 'black-clover';
+        const defaultServer = (ep.tmdb_id || isBc) ? 'vidlink-anime' : 'animeembed';
+        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : defaultServer;
         if (watchState.audio === 'hindi') {
           watchState.audio = 'dub';
         }
@@ -3229,8 +3256,10 @@ async function renderWatchPage(episodeId) {
           watchState.selectedServer = (ep.anime_type === 'Movie' && ep.tmdb_id) ? 'vidlink-anime' : 'animeembed';
         } else {
           const stored = localStorage.getItem('anime_server');
-          const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+          const validAn = ['hindi-toons', 'vidlink-anime', 'vidcore-anime', 'autoembed-anime', 'two-embed', 'animeembed', 'animeembed-mal'];
+          const isBc = ep.anime_slug === 'black-clover-season-2' || ep.anime_slug === 'black-clover';
+          const defaultServer = (ep.tmdb_id || isBc) ? 'vidlink-anime' : 'animeembed';
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : defaultServer;
         }
       }
     }
