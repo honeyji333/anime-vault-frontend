@@ -527,13 +527,13 @@ const ANIME_SERVERS = [
   },
   {
     id: 'two-embed',
-    name: '2Embed',
+    name: 'VidSpark',
     badge: 'MULTI-CDN',
-    provider: '2Embed Global Stream',
+    provider: 'VidSpark / Vidstream Mirror',
     audio: ['sub', 'dub'],
-    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie, audio }) => {
+    build: ({ anilistId, malId, tmdbId, episode, audio, isMovie }) => {
       if (isMovie && tmdbId) {
-        return `https://www.2embed.cc/embed/${tmdbId}`;
+        return `https://vidspark.to/movie/${tmdbId}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = malId ? 'mal' : 'ani';
@@ -556,13 +556,46 @@ const ANIME_SERVERS = [
   }
 ];
 
-// Web Series & Movies TMDB streaming providers (Clean, Fast, 4K UHD, Zero Adult Popups)
+// Web Series & Movies TMDB streaming providers (Verified Fast Working Servers First)
 const WEBSERIES_SERVERS = [
   {
+    id: 'vidspark-tv',
+    name: 'Server 1 (VidSpark 4K)',
+    badge: 'FAST 4K',
+    provider: 'VidSpark 4K UHD (Recommended — Multi-Server)',
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ tmdbId, season, episode, isMovie }) =>
+      isMovie
+        ? `https://vidspark.to/movie/${tmdbId}`
+        : `https://vidspark.to/tv/${tmdbId}/${season}/${episode}`
+  },
+  {
+    id: 'vidcore-tv',
+    name: 'Server 2 (VidCore 4K)',
+    badge: '4K UHD',
+    provider: 'VidCore Ultra HD',
+    audio: ['sub', 'dub', 'hindi'],
+    build: ({ tmdbId, season, episode, isMovie }) =>
+      isMovie
+        ? `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`
+        : `https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}?theme=8b5cf6`
+  },
+  {
+    id: 'vidsrc-pm',
+    name: 'Server 3 (VidPrime HD)',
+    badge: 'STABLE HD',
+    provider: 'VidPrime Global Stream',
+    audio: ['sub', 'dub'],
+    build: ({ tmdbId, season, episode, isMovie }) =>
+      isMovie
+        ? `https://vidsrc.pm/embed/movie/${tmdbId}`
+        : `https://vidsrc.pm/embed/tv/${tmdbId}/${season}/${episode}`
+  },
+  {
     id: 'hindi-multi-uhd',
-    name: 'Server 1 (Hindi Dub 4K)',
-    badge: '🇮🇳 4K HINDI',
-    provider: 'VidLink Multi-Audio Ultra HD (Hindi Default)',
+    name: 'Server 4 (VidLink Hindi)',
+    badge: '🇮🇳 HINDI',
+    provider: 'VidLink Multi-Audio Ultra HD',
     audio: ['hindi', 'dub', 'sub'],
     build: ({ tmdbId, season, episode, isMovie, audio }) => {
       const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : (audio === 'sub' ? '&multi=true' : '');
@@ -572,59 +605,15 @@ const WEBSERIES_SERVERS = [
     }
   },
   {
-    id: 'vidcore-tv',
-    name: 'Server 2 (4K UHD)',
-    badge: '4K UHD',
-    provider: 'VidCore Ultra HD',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, season, episode, isMovie }) =>
-      isMovie
-        ? `https://vidcore.org/embed/movie/${tmdbId}?theme=8b5cf6`
-        : `https://vidcore.org/embed/tv/${tmdbId}/${season}/${episode}?theme=8b5cf6`
-  },
-  {
     id: 'autoembed-direct',
-    name: 'Server 3 (PRO)',
-    badge: 'UHD PRO',
+    name: 'Server 5 (AutoEmbed)',
+    badge: 'BACKUP HD',
     provider: 'AutoEmbed Direct',
     audio: ['sub', 'dub'],
     build: ({ tmdbId, season, episode, isMovie }) =>
       isMovie
         ? `https://player.autoembed.me/embed/movie/${tmdbId}`
         : `https://player.autoembed.me/embed/tv/${tmdbId}/${season}/${episode}/`
-  },
-  {
-    id: '2embed-skin',
-    name: 'Server 4 (Multi-Audio)',
-    badge: 'MULTI-AUDIO',
-    provider: '2Embed Ultra HD Multi-Audio',
-    audio: ['hindi', 'dub', 'sub'],
-    build: ({ tmdbId, season, episode, isMovie }) =>
-      isMovie
-        ? `https://www.2embed.skin/movie/${tmdbId}`
-        : `https://www.2embed.skin/tv/${tmdbId}&s=${season}&e=${episode}`
-  },
-  {
-    id: '2embed-cc',
-    name: 'Server 5 (FAST)',
-    badge: 'FAST STREAM',
-    provider: '2Embed Global Stream',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, season, episode, isMovie }) =>
-      isMovie
-        ? `https://www.2embed.cc/embed/${tmdbId}`
-        : `https://www.2embed.cc/embedtv/${tmdbId}&s=${season}&e=${episode}`
-  },
-  {
-    id: 'vidlink-tv',
-    name: 'Server 6 (2K HD)',
-    badge: '2K HD',
-    provider: 'VidLink Pro Ultra',
-    audio: ['sub', 'dub'],
-    build: ({ tmdbId, season, episode, isMovie }) =>
-      isMovie
-        ? `https://vidlink.pro/movie/${tmdbId}?primaryColor=8b5cf6`
-        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?primaryColor=8b5cf6`
   }
 ];
 
@@ -2225,16 +2214,19 @@ async function renderAnimeDetail(slug) {
     const rev = localStorage.getItem('anime_player_rev');
     const validAnimeIds = ['animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
     const s = localStorage.getItem('anime_server');
-    if (rev !== '20261125' || !s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'justplay-pahe' || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime' || s === 'vidcore-anime') {
+    if (rev !== '20261125-v2' || !s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'justplay-pahe' || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime' || s === 'vidcore-anime') {
       localStorage.setItem('anime_server', 'animeembed');
     }
     const ws = localStorage.getItem('webseries_server');
-    const validWsIds = ['hindi-multi-uhd', 'vidcore-tv', 'autoembed-direct', '2embed-skin', '2embed-cc', 'vidlink-tv'];
-    if (rev !== '20261125' || !ws || !validWsIds.includes(ws)) {
-      localStorage.setItem('webseries_server', 'hindi-multi-uhd');
+    const validWsIds = ['vidspark-tv', 'vidcore-tv', 'vidsrc-pm', 'hindi-multi-uhd', 'autoembed-direct'];
+    if (rev !== '20261125-v2' || !ws || !validWsIds.includes(ws)) {
+      localStorage.setItem('webseries_server', 'vidspark-tv');
     }
-    if (rev !== '20261125') {
-      localStorage.setItem('anime_player_rev', '20261125');
+    if (rev !== '20261125-v2') {
+      if (localStorage.getItem('anime_audio') === 'hindi') {
+        localStorage.setItem('anime_audio', 'sub');
+      }
+      localStorage.setItem('anime_player_rev', '20261125-v2');
     }
   } catch (e) {}
 })();
@@ -2825,14 +2817,15 @@ window.scrollDetailSeasonsSlider = function(dir) {
 
 window.setWatchServer = function(serverId) {
   watchState.selectedServer = serverId;
-  const isWebSeries = watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || (watchState.ep?.anime_type === 'Movie' && !watchState.ep?.anilist_id);
+  const isAnimeEp = watchState.ep?.category === 'anime' || Boolean(watchState.ep?.anilist_id);
+  const isWebSeries = !isAnimeEp && (watchState.ep?.anime_type === 'ONA' || watchState.ep?.category === 'series' || watchState.ep?.category === 'kdrama' || watchState.ep?.category === 'cdrama' || watchState.ep?.category === 'drama' || watchState.ep?.category === 'live_action' || watchState.ep?.anime_type === 'Movie');
   if (serverId !== 'official' && serverId !== 'hindi-toons') {
     localStorage.setItem(isWebSeries ? 'webseries_server' : 'anime_server', serverId);
   }
   if (serverId === 'hindi-toons' || serverId === 'hindi-multi-uhd') {
     watchState.audio = 'hindi';
     localStorage.setItem('anime_audio', 'hindi');
-  } else if (watchState.audio === 'hindi' && serverId !== 'vidlink-anime' && serverId !== '2embed-skin') {
+  } else if (watchState.audio === 'hindi' && serverId !== 'vidlink-anime' && serverId !== 'vidspark-tv' && serverId !== 'vidcore-tv') {
     watchState.audio = 'dub';
     localStorage.setItem('anime_audio', 'dub');
   }
@@ -2843,15 +2836,15 @@ window.setWatchServer = function(serverId) {
   const noticeText = document.getElementById('server-notice-text');
   if (noticeText && watchState.ep) {
     if (serverId === 'official') {
-      noticeText.textContent = `Official stream published by ${watchState.ep.source_name || 'verified partner'}. Audio: ${watchState.ep.audio_language || 'Original'}. Switch to Server 1-6 for multi-server playback.`;
+      noticeText.textContent = `Official stream published by ${watchState.ep.source_name || 'verified partner'}. Audio: ${watchState.ep.audio_language || 'Original'}. Switch to another server anytime.`;
     } else if (serverId === 'hindi-toons') {
-      noticeText.textContent = 'Streaming via Vault Toons Ultra Hindi Dub (Multi-Server HD). Includes RubyStream 1080p, FilesForever HD & Google Drive mirrors.';
+      noticeText.textContent = 'Streaming via Vault Toons Hindi Dub mirrors. If a mirror does not load, click another mirror bar at top of player or switch to Vidstream HD for Japanese/English.';
     } else if (serverId === 'hindi-multi-uhd') {
-      noticeText.textContent = 'Streaming via Server 1 (Hindi Dub 4K UHD). Multi-audio master stream with Hindi Audio track priority. Zero popups active.';
+      noticeText.textContent = 'Streaming via Server 4 (VidLink Hindi). Multi-audio master stream. If it buffers on your network, switch to Server 1 (VidSpark 4K) or Server 2 (VidCore 4K).';
     } else if (isWebSeries) {
-      noticeText.textContent = 'Streaming via verified multi-provider 4K HD feeds (Server 1: Hindi Dub 4K, Server 2: VidCore 4K UHD, Server 3: AutoEmbed PRO, Server 4: 2Embed Multi-Audio). Switch servers anytime.';
+      noticeText.textContent = 'Streaming via verified multi-provider 4K HD feeds (Server 1: VidSpark 4K, Server 2: VidCore 4K, Server 3: VidPrime HD, Server 4: VidLink Hindi). Switch servers anytime.';
     } else {
-      noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidstream HD, Server 2: MegaCloud HD, Server 3: VidLink PRO 4K, Server 4: 2Embed, Server 5: AnimeStream). Switch servers or SUB/DUB/HINDI anytime.';
+      noticeText.textContent = 'Streaming via verified multi-provider HD feeds (Server 1: Vidstream HD, Server 2: MegaCloud HD, Server 3: VidLink PRO, Server 4: VidSpark, Server 5: AnimeStream). Switch servers or SUB/DUB anytime.';
     }
   }
   const tipBanner = document.querySelector('.stream-tip-banner strong');
@@ -3193,43 +3186,36 @@ async function renderWatchPage(episodeId) {
       });
     }
 
-    // Determine default selected server (official video always takes priority for 100% reliable playback, while live-action movies default to 4K UHD server)
+    // Determine default selected server (always default to verified fast direct servers; users can switch servers or Hindi anytime)
     if (officialVideoId && !isLiveMovie) {
       watchState.selectedServer = 'official';
     } else if (isWebSeriesOrLive) {
       const stored = localStorage.getItem('webseries_server');
-      const validWs = ['hindi-multi-uhd', 'vidcore-tv', 'autoembed-direct', '2embed-skin', '2embed-cc', 'vidlink-tv'];
+      const validWs = ['vidspark-tv', 'vidcore-tv', 'vidsrc-pm', 'hindi-multi-uhd', 'autoembed-direct'];
       const storedAudio = localStorage.getItem('anime_audio');
       const isIndian = isIndianTitle(ep);
       const hasHindi = Boolean(ep.has_hindi_dub || HINDI_DUBBED_SLUGS.has(ep.anime_slug) || isIndian);
 
-      if ((isIndian && (!stored || stored === 'hindi-multi-uhd')) || storedAudio === 'hindi') {
-        watchState.audio = 'hindi';
-        watchState.selectedServer = 'hindi-multi-uhd';
-      } else {
-        watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : (hasHindi ? 'hindi-multi-uhd' : 'vidcore-tv');
-        if (storedAudio && (storedAudio !== 'hindi' || hasHindi)) watchState.audio = storedAudio;
-        else if (watchState.audio === 'hindi' && !hasHindi) watchState.audio = 'sub';
-      }
+      watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'vidspark-tv';
+      if (storedAudio && (storedAudio !== 'hindi' || hasHindi)) watchState.audio = storedAudio;
+      else if (isIndian && !storedAudio) watchState.audio = 'hindi';
+      else if (watchState.audio === 'hindi' && !hasHindi) watchState.audio = 'sub';
     } else {
       if (hasToonsHindi) {
-        // Within active Hindi Dub batch (e.g. Tokyo Revengers ep 1-24, Naruto Shippuden ep 1-32)
         const storedAudio = localStorage.getItem('anime_audio');
-        if (storedAudio === 'hindi' || !storedAudio || ep.anime_slug === 'tokyo-revengers') {
+        if (storedAudio === 'hindi') {
           watchState.selectedServer = 'hindi-toons';
           watchState.audio = 'hindi';
         } else {
           const stored = localStorage.getItem('anime_server');
           const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-          const fallback = (storedAudio === 'sub' || storedAudio === 'dub') ? 'animeembed' : 'hindi-toons';
-          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : fallback;
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored) && stored !== 'hindi-toons') ? stored : 'animeembed';
+          if (watchState.audio === 'hindi') watchState.audio = 'sub';
         }
       } else if (isPastHindiBatch) {
-        // High episodes where Hindi Dub batch ends (e.g. Naruto Shippuden ep 300)
-        // Auto-route to Vidstream (animeembed) with English Dub/Sub
         const stored = localStorage.getItem('anime_server');
         const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+        watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored) && stored !== 'hindi-toons') ? stored : 'animeembed';
         if (watchState.audio === 'hindi') {
           watchState.audio = 'dub';
         }
@@ -3241,7 +3227,7 @@ async function renderWatchPage(episodeId) {
         } else {
           const stored = localStorage.getItem('anime_server');
           const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored) && stored !== 'hindi-toons') ? stored : 'animeembed';
           if (watchState.audio === 'hindi') {
             watchState.audio = 'sub';
           }
