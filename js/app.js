@@ -370,7 +370,7 @@ const HINDI_DUBBED_SLUGS = new Set([
   'fairy-tail', 'fairy-tail-hindi', 'demon-slayer', 'demon-slayer-mugen-train',
   'jujutsu-kaisen', 'chainsaw-man', 'my-hero-academia', 'solo-leveling', 'solo-leveling-season-2',
   'spy-x-family', 'one-punch-man', 'attack-on-titan', 'death-note', 'tokyo-revengers',
-  'black-clover', 'kaiju-no-8', 'dan-da-dan', 'bleach-classic', 'bleach-tybw', 'bleach-tybw-part-3',
+  'black-clover-sword-of-the-wizard-king', 'kaiju-no-8', 'dan-da-dan', 'bleach-classic', 'bleach-tybw', 'bleach-tybw-part-3',
   'dr-stone', 'vinland-saga', 'vinland-saga-season-2', 'hells-paradise',
   'classroom-of-the-elite', 'delicious-in-dungeon', 'shangri-la-frontier',
   'blue-lock', 'mashle', 'wind-breaker', 'the-apothecary-diaries', 'ranma-1-2-2024',
@@ -481,35 +481,35 @@ const ANIME_SERVERS = [
     id: 'animeembed',
     name: 'Vidstream',
     badge: 'FAST HD',
-    provider: 'Vidstream Ultra HD (Zero-Ad Proxy)',
+    provider: 'Vidstream Direct HD',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = anilistId ? 'ani' : 'mal';
       const id = anilistId || malId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/${type}/${id}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: 'animeembed-mal',
     name: 'MegaCloud',
     badge: 'STABLE HD',
-    provider: 'MegaCloud Engine (Zero-Ad Proxy)',
+    provider: 'MegaCloud Direct HD',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = malId ? 'mal' : 'ani';
       const id = malId || anilistId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/${type}/${id}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: 'vidlink-anime',
     name: 'VidLink PRO',
-    badge: 'SMOOTH HD',
-    provider: 'VidLink Pro Ultra HD',
+    badge: '4K UHD',
+    provider: 'VidLink Pro Ultra HD (Multi-Audio)',
     audio: ['sub', 'dub', 'hindi'],
-    build: ({ anilistId, malId, tmdbId, episode, season, isMovie, audio }) => {
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie, audio }) => {
       const langParam = audio === 'hindi' ? '&multi=true&lang=hi' : '';
       if (isMovie) {
         const id = tmdbId || 37854;
@@ -517,12 +517,12 @@ const ANIME_SERVERS = [
       }
       if (tmdbId && audio === 'hindi') {
         const s = season || 1;
-        return `https://vidlink.pro/tv/${tmdbId}/${s}/${episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
+        return `https://vidlink.pro/tv/${tmdbId}/${s}/${tmdbEpisode || episode}?primaryColor=8b5cf6&secondaryColor=10b981&iconColor=8b5cf6&autoplay=false${langParam}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = anilistId ? 'ani' : 'mal';
       const id = anilistId || malId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/${type}/${id}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
@@ -531,27 +531,27 @@ const ANIME_SERVERS = [
     badge: 'MULTI-CDN',
     provider: '2Embed Global Stream',
     audio: ['sub', 'dub'],
-    build: ({ anilistId, malId, tmdbId, episode, isMovie, audio }) => {
-      if (isMovie) {
-        const id = tmdbId || 37854;
-        return `https://www.2embed.cc/embed/${id}`;
+    build: ({ anilistId, malId, tmdbId, episode, tmdbEpisode, season, isMovie, audio }) => {
+      if (isMovie && tmdbId) {
+        return `https://www.2embed.cc/embed/${tmdbId}`;
       }
       const track = audio === 'sub' ? 'sub' : 'dub';
       const type = malId ? 'mal' : 'ani';
       const id = malId || anilistId || 21;
-      return `/api/player/embed?type=${type}&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/${type}/${id}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   },
   {
     id: 'animeembed-mirror',
     name: 'AnimeStream',
     badge: 'UHD PRO',
-    provider: 'AnimeStream Mirror HD (Zero-Ad Proxy)',
+    provider: 'AnimeStream Direct HD Mirror',
     audio: ['sub', 'dub'],
     build: ({ anilistId, malId, episode, audio }) => {
       const track = audio === 'sub' ? 'sub' : 'dub';
+      const type = anilistId ? 'ani' : 'mal';
       const id = anilistId || malId || 21;
-      return `/api/player/embed?type=ani&id=${id}&ep=${episode}&track=${track}&accent=8b5cf6&autoSkip=1`;
+      return `https://animeembed.com/embed/${type}/${id}/${episode}?track=${track}&accent=8b5cf6&autoSkip=1`;
     }
   }
 ];
@@ -2222,17 +2222,19 @@ async function renderAnimeDetail(slug) {
 // Clean up broken/deprecated server selections from localStorage
 (function migrateServerStorage() {
   try {
-    const s = localStorage.getItem('anime_server');
+    const rev = localStorage.getItem('anime_player_rev');
     const validAnimeIds = ['animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-    // Automatically migrate away from down/broken servers (justplay, jutsu, vidnest, tryembed, vidcore-anime) to Vidstream Ultra HD
-    if (!s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'justplay-pahe' || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime') {
+    const s = localStorage.getItem('anime_server');
+    if (rev !== '20261125' || !s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'justplay-pahe' || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime' || s === 'vidcore-anime') {
       localStorage.setItem('anime_server', 'animeembed');
     }
     const ws = localStorage.getItem('webseries_server');
-    const validWsIds = ['vidcore-tv', 'autoembed-direct', 'vidlink-tv', '2embed-cc', '2embed-skin'];
-    // Automatically default to rock-solid VidCore Ultra 4K UHD
-    if (!ws || !validWsIds.includes(ws) || ws === 'vidsrc-pm' || ws === 'vidsrc-cc' || ws === 'vidnest-tv' || ws === 'vidnest' || ws === 'videasy' || ws === 'autoembed-tv' || ws === 'embedsu-tv' || ws === 'vidsrc-vip') {
-      localStorage.setItem('webseries_server', 'vidcore-tv');
+    const validWsIds = ['hindi-multi-uhd', 'vidcore-tv', 'autoembed-direct', '2embed-skin', '2embed-cc', 'vidlink-tv'];
+    if (rev !== '20261125' || !ws || !validWsIds.includes(ws)) {
+      localStorage.setItem('webseries_server', 'hindi-multi-uhd');
+    }
+    if (rev !== '20261125') {
+      localStorage.setItem('anime_player_rev', '20261125');
     }
   } catch (e) {}
 })();
@@ -2244,7 +2246,7 @@ let watchState = {
     try {
       const s = localStorage.getItem('anime_server');
       const validAnimeIds = ['animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-      if (!s || !validAnimeIds.includes(s) || s === 'justplay' || s === 'justplay-pahe' || s === 'jutsu' || s === 'vidnest' || s === 'tryembed' || s === 'vidlink-multi' || s === 'autoembed-anime') {
+      if (!s || !validAnimeIds.includes(s)) {
         localStorage.setItem('anime_server', 'animeembed');
         return 'animeembed';
       }
@@ -2443,6 +2445,10 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
       if (ep.anime_slug === 'scam-1992') {
         targetTmdb = 111188;
       }
+      if (ep.anime_slug === 'dhindora-season-2') {
+        targetTmdb = 275204;
+        season = 2;
+      }
       if (ep.anime_slug === 'game-of-thrones') {
         targetTmdb = 1399;
         const n = Number(ep.number) || 1;
@@ -2506,8 +2512,9 @@ function buildStreamUrl(ep, serverId, audio, startTime = 0) {
           anilistId,
           malId,
           tmdbId,
-          episode: (s.id === 'vidlink-anime' || s.id === 'two-embed') && isMovie ? tmdbEpisode : epNum,
-          season: tmdbSeason,
+          episode: epNum,
+          tmdbEpisode: tmdbEpisode || epNum,
+          season: tmdbSeason || 1,
           audio,
           animeTitle,
           animeSlug: ep.anime_slug,
@@ -2581,14 +2588,9 @@ function updateWatchIframe() {
   const url = buildStreamUrl(watchState.ep, watchState.selectedServer, watchState.audio, savedProg);
 
   const isOfficial = watchState.selectedServer === 'official';
-  const isInternal = url.startsWith('/api/');
 
-  if (isOfficial || isInternal) {
-    frame.removeAttribute('sandbox');
-  } else {
-    // Strictly sandbox external third-party scrapers to block any popups or top-level redirects
-    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
-  }
+  // Ensure sandbox attribute is never set so Vidstream (animeembed) and VidLink PRO play smoothly
+  frame.removeAttribute('sandbox');
 
   if (isOfficial) {
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
@@ -2904,15 +2906,13 @@ window.setWatchAudio = function(audioMode) {
   } else if (audioMode === 'sub') {
     showToast('💬 SUB Track: Japanese/Original Audio with English Subtitles.', 'info');
     if (watchState.selectedServer === 'hindi-toons') {
-      const isHighEp = (watchState.ep?.anime_slug === 'naruto-shippuden' && (Number(watchState.ep?.number) || 1) > 150);
-      setWatchServer(isHighEp ? 'vidlink-anime' : 'animeembed');
+      setWatchServer('animeembed');
       return;
     }
   } else {
     showToast('🎙️ DUB Track: English Audio (Subtitles are turned off in Dub by provider).', 'info');
     if (watchState.selectedServer === 'hindi-toons') {
-      const isHighEp = (watchState.ep?.anime_slug === 'naruto-shippuden' && (Number(watchState.ep?.number) || 1) > 150);
-      setWatchServer(isHighEp ? 'vidlink-anime' : 'animeembed');
+      setWatchServer('animeembed');
       return;
     }
   }
@@ -3168,7 +3168,11 @@ async function renderWatchPage(episodeId) {
     const isLiveMovie = (ep.category === 'live_action' || (ep.anime_type === 'Movie' && !ep.anilist_id)) && !isAnime;
     const isWebSeries = !isAnime && (ep.category === 'series' || ep.category === 'kdrama' || ep.category === 'cdrama' || ep.category === 'drama' || isKapilShow || ep.anime_type === 'ONA');
     const isWebSeriesOrLive = isWebSeries || isLiveMovie;
-    const officialVideoId = isKapilShow ? null : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
+    const isYtOnlyAnime = ep.anime_slug === 'pokemon-hisuian-snow' || ep.anime_slug === 'pokemon-paldean-winds' || ep.anime_slug === 'fairy-tail-hindi';
+    const hasStreamingIds = Boolean(ep.anilist_id || ep.mal_id || ep.tmdb_id);
+    const officialVideoId = (isKapilShow || (isAnime && !isYtOnlyAnime && hasStreamingIds))
+      ? null
+      : (/^[A-Za-z0-9_-]{11}$/.test(ep.youtube_video_id || '') ? ep.youtube_video_id : null);
     
     const epNum = Number(ep.number) || 1;
     const isToonsHindi = TOONS_HINDI_SLUGS.has(ep.anime_slug);
@@ -3199,12 +3203,13 @@ async function renderWatchPage(episodeId) {
       const isIndian = isIndianTitle(ep);
       const hasHindi = Boolean(ep.has_hindi_dub || HINDI_DUBBED_SLUGS.has(ep.anime_slug) || isIndian);
 
-      if (isIndian || storedAudio === 'hindi') {
+      if ((isIndian && (!stored || stored === 'hindi-multi-uhd')) || storedAudio === 'hindi') {
         watchState.audio = 'hindi';
         watchState.selectedServer = 'hindi-multi-uhd';
       } else {
         watchState.selectedServer = (stored && validWs.includes(stored) && serversList.some(s => s.id === stored)) ? stored : (hasHindi ? 'hindi-multi-uhd' : 'vidcore-tv');
-        if (storedAudio) watchState.audio = storedAudio;
+        if (storedAudio && (storedAudio !== 'hindi' || hasHindi)) watchState.audio = storedAudio;
+        else if (watchState.audio === 'hindi' && !hasHindi) watchState.audio = 'sub';
       }
     } else {
       if (hasToonsHindi) {
@@ -3216,7 +3221,8 @@ async function renderWatchPage(episodeId) {
         } else {
           const stored = localStorage.getItem('anime_server');
           const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
-          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'hindi-toons';
+          const fallback = (storedAudio === 'sub' || storedAudio === 'dub') ? 'animeembed' : 'hindi-toons';
+          watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : fallback;
         }
       } else if (isPastHindiBatch) {
         // High episodes where Hindi Dub batch ends (e.g. Naruto Shippuden ep 300)
@@ -3236,6 +3242,9 @@ async function renderWatchPage(episodeId) {
           const stored = localStorage.getItem('anime_server');
           const validAn = ['hindi-toons', 'animeembed', 'animeembed-mal', 'vidlink-anime', 'two-embed', 'animeembed-mirror'];
           watchState.selectedServer = (stored && validAn.includes(stored) && serversList.some(s => s.id === stored)) ? stored : 'animeembed';
+          if (watchState.audio === 'hindi') {
+            watchState.audio = 'sub';
+          }
         }
       }
     }
@@ -3295,16 +3304,13 @@ async function renderWatchPage(episodeId) {
       : (isWebSeries && ep.season_number ? `Season ${ep.season_number} Episode ${ep.episode_in_season || ep.number}` : `Episode ${ep.number}`);
 
     const isOfficialServer = watchState.selectedServer === 'official';
-    const isInternalStream = streamUrl.startsWith('/api/');
     const iframeReferrerPolicy = isOfficialServer
       ? 'referrerpolicy="strict-origin-when-cross-origin"'
       : 'referrerpolicy="no-referrer-when-downgrade"';
     const iframeAllowAttr = isOfficialServer
       ? 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"'
       : 'allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; clipboard-write *"';
-    const iframeSandboxAttr = (!isOfficialServer && !isInternalStream)
-      ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads"'
-      : '';
+    const iframeSandboxAttr = '';
 
     const seasonsList = ep.seasons || [];
     const moreSeasonsHtml = seasonsList.length > 1 ? `
@@ -3778,11 +3784,7 @@ async function renderWatchPage(episodeId) {
     const frame = document.getElementById('watch-iframe');
     const loader = document.getElementById('player-loader');
     if (frame) {
-      if (isInternalStream || isOfficialServer) {
-        frame.removeAttribute('sandbox');
-      } else {
-        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-downloads');
-      }
+      frame.removeAttribute('sandbox');
       frame.onload = () => {
         if (loader) loader.classList.add('hidden');
       };
